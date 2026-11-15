@@ -85,9 +85,9 @@ pub fn missing_extras(resources: &Path) -> Vec<(&'static str, &'static str)> {
 }
 
 /// What, whether it is missing, the command.
-type Extra = (&'static str, fn(&Path) -> bool, &'static str);
+pub(crate) type Extra = (&'static str, fn(&Path) -> bool, &'static str);
 
-const EXTRAS: [Extra; 5] = [
+pub(crate) const EXTRAS: [Extra; 5] = [
     ("the built-in packs", lacks_packs, "packs"),
     ("the title panorama", lacks_panorama, "panorama"),
     ("the Unifont glyphs", lacks_unifont, "fonts"),

@@ -844,6 +844,61 @@ mod tests {
         assert!(!target.join("assets/minecraft/font").exists());
     }
 
+    /// `extras`: each from the first folder that has it, the data cache dropped, `--only` honoured.
+    #[test]
+    fn extras_come_from_the_first_folder_that_has_them() {
+        let f = Fixture::with_extras(
+            "extras",
+            &PANORAMA,
+            &[("pack.mcmeta", b"{\"language\": {\"fr_fr\": {}}}")],
+        );
+        let target = f.root.join(".local/sunrise-client/9.9");
+        fs::create_dir_all(&target).unwrap();
+        fs::write(target.join("sunrise-resources.json"), "{}").unwrap();
+        fs::write(target.join(crate::extras::DATA_FILE), "stale").unwrap();
+        let folders = [f.dir.join("no-store"), f.minecraft.clone()];
+        let inputs = Inputs::default();
+        let only = ["packs".to_owned(), "fonts".to_owned()];
+        let some =
+            crate::extras::add(&f.root, None, Some(&only), &folders, &inputs, &|_| {}).unwrap();
+        assert_eq!(some.added, ["packs", "fonts"]);
+        assert!(some.failed.is_empty());
+        let still: Vec<_> = some.missing.iter().map(|(kind, _)| *kind).collect();
+        assert_eq!(still, ["panorama", "languages", "sounds"]);
+        assert!(!target.join(crate::extras::DATA_FILE).exists());
+        let rest = crate::extras::add(&f.root, None, None, &folders, &inputs, &|_| {}).unwrap();
+        assert_eq!(rest.added, ["panorama", "languages", "sounds"]);
+        // The fixture's faces aren't PNGs, so the panorama check still finds them lacking.
+        let still: Vec<_> = rest.missing.iter().map(|(kind, _)| *kind).collect();
+        assert_eq!(still, ["panorama"]);
+        let only = ["sounds".to_owned()];
+        let none = crate::extras::add(&f.root, None, Some(&only), &folders[..1], &inputs, &|_| {});
+        assert_eq!(none.unwrap().added, Vec::<&str>::new());
+    }
+
+    #[test]
+    fn extras_say_why_one_could_not_be_added() {
+        let f = Fixture::new("extras-failed");
+        let target = f.root.join(".local/sunrise-client/9.9");
+        fs::create_dir_all(&target).unwrap();
+        fs::write(target.join("sunrise-resources.json"), "{}").unwrap();
+        let folders = [f.dir.join("no-store")];
+        let only = ["sounds".to_owned()];
+        let done = crate::extras::add(
+            &f.root,
+            None,
+            Some(&only),
+            &folders,
+            &Inputs::default(),
+            &|_| {},
+        )
+        .unwrap();
+        assert!(done.added.is_empty());
+        assert_eq!(done.failed.len(), 1);
+        assert_eq!(done.failed[0].0, "sounds");
+        assert!(!done.failed[0].1.is_empty());
+    }
+
     #[test]
     fn the_index_must_hold_the_sounds() {
         let f = Fixture::new("index");

@@ -26,6 +26,9 @@ Usage: sunrise-prepare [--prepare] [--server-jar PATH] [--minecraft-dir PATH] [-
        sunrise-prepare fonts [--minecraft-dir PATH] [--version-json PATH] [--assets-dir PATH] [--root PATH] [--output PATH]
        sunrise-prepare packs [--minecraft-dir PATH] [--version-json PATH] [--assets-dir PATH] [--root PATH] [--output PATH]
        sunrise-prepare languages [--minecraft-dir PATH] [--version-json PATH] [--assets-dir PATH] [--root PATH] [--output PATH]
+       sunrise-prepare needs [--root PATH] [--json]
+       sunrise-prepare missing-extras [--root PATH] [--output PATH] [--json]
+       sunrise-prepare extras [--only KIND,...] [--minecraft-dir PATH]... [--assets-dir PATH] [--root PATH] [--output PATH] [--json]
 
   --prepare             Import the pinned game files from your own copy first
   --server-jar PATH     The pinned server jar you downloaded yourself
@@ -72,6 +75,12 @@ sunrise-prepare packs adds the built-in Programmer Art and High Contrast resourc
 sunrise-prepare languages adds the bundled languages and the language list the JAR lacks the same way.
 Full preparation also imports all four after extracting the client JAR's placeholders.
 
+sunrise-prepare needs says whether preparing will need a server jar (no verified import to reuse) and a JDK
+(no matching exporters shipped). sunrise-prepare missing-extras lists what prepared resources lack of packs,
+panorama, fonts, languages and sounds. sunrise-prepare extras adds what they lack (--only: some kinds), each
+from the first --minecraft-dir whose asset store has it; exit 1 when one stays missing. With --json each prints
+JSON on stdout (docs/api/prepare-extras.md).
+
 sunrise-prepare sounds copies the pinned version's sounds (about 380 MB) from the official
 launcher's asset store into the same folder, checking every file. It is optional: without it the
 game is silent. Nothing is downloaded; it needs the version played once from the official launcher.
@@ -107,13 +116,31 @@ fn main() -> ExitCode {
     let mut complete = false;
     let mut json = false;
     let mut launch_api = false;
+    let mut as_json = false;
+    let mut only: Option<Vec<String>> = None;
+    let mut folders: Vec<PathBuf> = Vec::new();
     let mut args = std::env::args_os().skip(1).peekable();
     let assets = args.next_if(|a| {
         matches!(
             a.to_str(),
-            Some("sounds" | "panorama" | "fonts" | "packs" | "languages" | "compile-exporters")
+            Some(
+                "sounds"
+                    | "panorama"
+                    | "fonts"
+                    | "packs"
+                    | "languages"
+                    | "compile-exporters"
+                    | "needs"
+                    | "missing-extras"
+                    | "extras"
+            )
         )
     });
+    let query = assets
+        .as_deref()
+        .and_then(|a| a.to_str())
+        .filter(|a| QUERIES.contains(a))
+        .map(str::to_owned);
     while let Some(arg) = args.next() {
         let text = arg.to_string_lossy().into_owned();
         let (flag, inline) = match text.split_once('=') {
@@ -135,12 +162,18 @@ fn main() -> ExitCode {
             "--prepare" | "--server-jar" | "--check" if assets.is_some() => {
                 Err(format!("{flag} is for preparing, not for asset copying"))
             }
+            "--progress" | "--launch-api" if query.is_some() => {
+                Err(format!("{flag} doesn't apply here; --json gives JSON"))
+            }
             "--prepare" if inline.is_none() => {
                 options.import = true;
                 Ok(())
             }
             "--server-jar" => value("--server-jar").map(|v| options.server_jar = Some(v)),
-            "--minecraft-dir" => value("--minecraft-dir").map(|v| options.minecraft_dir = Some(v)),
+            "--minecraft-dir" => value("--minecraft-dir").map(|v| {
+                folders.push(v.clone());
+                options.minecraft_dir = Some(v);
+            }),
             "--prism-dir" => value("--prism-dir").map(|v| options.inputs.prism_dir = Some(v)),
             "--version-json" => {
                 value("--version-json").map(|v| options.inputs.version_json = Some(v))
@@ -169,6 +202,24 @@ fn main() -> ExitCode {
                 Ok(v) => Err(format!("--progress takes json, not {}", v.display())),
                 Err(e) => Err(e),
             },
+            "--json" if inline.is_none() && query.is_some() => {
+                as_json = true;
+                Ok(())
+            }
+            "--only" if query.as_deref() == Some("extras") => value("--only").and_then(|v| {
+                let kinds: Vec<String> =
+                    v.to_string_lossy().split(',').map(str::to_owned).collect();
+                match kinds
+                    .iter()
+                    .find(|k| !sunrise_prepare::extras::kinds().any(|known| known == *k))
+                {
+                    Some(unknown) => Err(format!("--only: no extra called {unknown}")),
+                    None => {
+                        only = Some(kinds);
+                        Ok(())
+                    }
+                }
+            }),
             "--launch-api" if inline.is_none() => {
                 launch_api = true;
                 Ok(())
@@ -195,6 +246,9 @@ fn main() -> ExitCode {
         return ExitCode::from(2);
     };
     options.root = root;
+    if let Some(query) = query {
+        return run_query(&query, &options, &folders, only.as_deref(), as_json);
+    }
     if launch_api {
         return match sunrise_prepare::artifacts::Lock::read(&options.root) {
             Ok(lock) => {
@@ -269,6 +323,101 @@ fn main() -> ExitCode {
         Err(e) => {
             if json {
                 print(&json_line("error", &e));
+            }
+            eprintln!("error: {e}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// The commands a launcher asks instead of linking the preparer (docs/api/prepare-extras.md).
+const QUERIES: [&str; 3] = ["needs", "missing-extras", "extras"];
+
+/// `needs`, `missing-extras` and `extras`: the answer on stdout, JSON with `--json`.
+fn run_query(
+    name: &str,
+    options: &sunrise_prepare::Options,
+    folders: &[PathBuf],
+    only: Option<&[String]>,
+    json: bool,
+) -> ExitCode {
+    use sunrise_prepare::extras;
+    let print = |line: &str| {
+        let mut out = std::io::stdout().lock();
+        let _ = writeln!(out, "{line}");
+        let _ = out.flush();
+    };
+    let lines = |list: &[(&str, &str)]| -> String {
+        match list {
+            [] => "nothing missing".into(),
+            some => some
+                .iter()
+                .map(|(kind, what)| format!("{kind}: {what}"))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        }
+    };
+    let result = match name {
+        "needs" => extras::needs(&options.root, &|line| eprintln!("{line}")).map(|needs| {
+            let text = match json {
+                true => extras::needs_json(&needs),
+                false => format!(
+                    "server jar needed: {}\nJDK needed: {}",
+                    needs.server_jar, needs.jdk
+                ),
+            };
+            (text, true)
+        }),
+        "missing-extras" => {
+            extras::missing(&options.root, options.output.as_deref()).map(|missing| {
+                let text = match (json, missing.prepared) {
+                    (true, _) => extras::missing_json(&missing),
+                    (false, false) => format!("{} is not prepared", missing.resources.display()),
+                    (false, true) => lines(&missing.extras),
+                };
+                (text, true)
+            })
+        }
+        _ => {
+            let log = |line: &str| match json {
+                true => print(&json_line("message", line)),
+                false => print(line),
+            };
+            extras::add(
+                &options.root,
+                options.output.as_deref(),
+                only,
+                folders,
+                &options.inputs,
+                &log,
+            )
+            .map(|added| {
+                let text = match json {
+                    true => extras::added_json(&added),
+                    false => {
+                        let mut out = vec![format!("added: {}", added.added.join(", "))];
+                        for (kind, error) in &added.failed {
+                            out.push(format!("not added: {kind}: {error}"));
+                        }
+                        out.join("\n")
+                    }
+                };
+                (text, added.failed.is_empty())
+            })
+        }
+    };
+    match result {
+        Ok((text, ok)) => {
+            print(&text);
+            if ok {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::FAILURE
+            }
+        }
+        Err(e) => {
+            if json {
+                print(&extras::error_json(&e));
             }
             eprintln!("error: {e}");
             ExitCode::FAILURE
