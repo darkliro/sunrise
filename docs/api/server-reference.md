@@ -57,6 +57,9 @@ Usage: sunrise-server [--dir DIR] <command>
               a running server takes the difficulty, default game mode and whitelist at once, the rest
               at its next start
   import FILE Write server.toml from a vanilla server.properties
+  engine-command [--json]
+              The game command `run` would start here (program, arguments, folder, environment and
+              the prepared game files), without starting it; exit 3 when those files are missing
   import-resources DIR
               Copy game files prepared elsewhere (by the launcher or sunrise-prepare) into place, after
               checking they are complete and for this Minecraft version; the old copy stays on failure

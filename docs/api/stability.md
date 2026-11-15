@@ -95,6 +95,7 @@ Deprecations and breaking changes are in bold. The release notes of the game rel
 | `sunrise-ctl` commands and MCP tools | preview | none yet (unversioned) |
 | The game's own control-socket commands outside `sunrise-ctl`'s table (test hooks) | experimental | |
 | `sunrise-server` commands, `server.toml` | stable | `sunrise-server --version` |
+| `sunrise-server engine-command --json` ([engine-command.md](engine-command.md)) | experimental | `"format": 1` |
 | Server control API | stable | `/api/v1` |
 | `sunrise-launcher` commands and MCP tools | preview | none yet (unversioned) |
 | Launch API: `sunrise-client`'s launch options, session JSON, exit codes; `sunrise-prepare`'s output and progress | experimental | 0.1.1, `sunrise-client --launch-api` and `sunrise-prepare --launch-api` |
