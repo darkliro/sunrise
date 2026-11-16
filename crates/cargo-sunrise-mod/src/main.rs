@@ -27,7 +27,7 @@
 //! - `registry build|review|check|list`: the registry repository's CI.
 //! - `use-jar <path>`: list an exact original Java jar as a passive asset/data source.
 //! - `native-build < plan.json`: compile native mods against an unpacked SDK, as the launcher does
-//!   (docs/native-build.md).
+//!   (docs/modding/src/reference/sdk/08-native-build.md).
 use sunrise_mod_package::{Content, Manifest, Package, manifest::MANIFEST};
 mod bounded;
 mod check;

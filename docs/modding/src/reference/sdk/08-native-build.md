@@ -21,11 +21,13 @@ cargo sunrise-mod native-build < plan.json
 |---|---|
 | 0 | It built: the last line is a `built` event. |
 | 1 | It did not: the last line is a `failed` event. |
-| 2 | No plan: the first line is not one, or names another contract. Standard error says why. |
+| 2 | No plan: the first line is not a plan of this contract (not one JSON object, a field missing, wrong or unknown). Standard error says why. |
+| 3 | Another contract: the plan's `contract` isn't `1`. It is read before any other field, so a newer plan is refused for its number, never for a field this tool doesn't know. Standard error names both contracts. |
 
 ## The plan
 
-One JSON object on one line. A field the tool doesn't know is refused, and so is any `contract` but `1`.
+One JSON object on one line. Its `contract` is checked first: anything but `1` exits 3. Then a field the tool
+doesn't know is refused (exit 2).
 
 | Field | What it is |
 |---|---|

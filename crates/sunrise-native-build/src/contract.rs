@@ -81,18 +81,45 @@ pub enum Event {
     Failed { error: String },
 }
 
-/// Reads the plan from the first line of `input`.
-pub fn read_plan(input: &mut dyn BufRead) -> Result<Plan, String> {
-    let mut line = String::new();
-    input.read_line(&mut line).map_err(|e| e.to_string())?;
-    let plan: Plan = serde_json::from_str(&line).map_err(|e| format!("the plan: {e}"))?;
-    if plan.contract != CONTRACT {
-        return Err(format!(
-            "the plan speaks contract {}; this tool speaks contract {CONTRACT}",
-            plan.contract
-        ));
+/// Why the first line of standard input isn't a plan this tool builds.
+#[derive(Debug, PartialEq, Eq)]
+pub enum PlanError {
+    /// It names another contract (or none a number can say), read before any other field.
+    Contract(serde_json::Value),
+    /// It isn't a plan of this contract: not one JSON object, a field missing, wrong or unknown.
+    Invalid(String),
+}
+
+impl std::fmt::Display for PlanError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Contract(contract) => write!(
+                f,
+                "the plan speaks contract {contract}; this tool speaks contract {CONTRACT}: use the tool of the SDK the plan was written for"
+            ),
+            Self::Invalid(error) => write!(f, "the plan: {error}"),
+        }
     }
-    Ok(plan)
+}
+
+/// Reads the plan from the first line of `input`. The contract is checked first, so a plan of another contract is
+/// refused for that and never for a field this contract doesn't have.
+pub fn read_plan(input: &mut dyn BufRead) -> Result<Plan, PlanError> {
+    let mut line = String::new();
+    input
+        .read_line(&mut line)
+        .map_err(|e| PlanError::Invalid(e.to_string()))?;
+    let value: serde_json::Value =
+        serde_json::from_str(&line).map_err(|e| PlanError::Invalid(e.to_string()))?;
+    let contract = value
+        .as_object()
+        .ok_or_else(|| PlanError::Invalid("not a JSON object".into()))?
+        .get("contract")
+        .ok_or_else(|| PlanError::Invalid("missing field `contract`".into()))?;
+    if contract.as_u64() != Some(u64::from(CONTRACT)) {
+        return Err(PlanError::Contract(contract.clone()));
+    }
+    serde_json::from_value(value).map_err(|e| PlanError::Invalid(e.to_string()))
 }
 
 /// Writes `event` as one line of `out`.
@@ -244,13 +271,34 @@ mod tests {
         let read = read_plan(&mut format!("{line}\ntrue\n").as_bytes()).unwrap();
         assert_eq!(read, plan(&dir));
         let mut newer = serde_json::to_value(plan(&dir)).unwrap();
-        newer["contract"] = (CONTRACT + 1).into();
-        let error = read_plan(&mut newer.to_string().as_bytes()).unwrap_err();
-        assert!(error.contains("this tool speaks contract 1"), "{error}");
         newer["contract"] = CONTRACT.into();
         newer["profile"] = "debug".into();
         let error = read_plan(&mut newer.to_string().as_bytes()).unwrap_err();
-        assert!(error.contains("unknown field `profile`"), "{error}");
+        assert!(
+            matches!(&error, PlanError::Invalid(e) if e.contains("unknown field `profile`")),
+            "{error}"
+        );
+        for not_a_plan in ["", "[]\n", "{\"work\": \"w\"}\n"] {
+            let error = read_plan(&mut not_a_plan.as_bytes()).unwrap_err();
+            assert!(
+                matches!(error, PlanError::Invalid(_)),
+                "{not_a_plan:?}: {error}"
+            );
+        }
+    }
+
+    #[test]
+    fn another_contract_is_refused_for_its_number_before_any_other_field() {
+        let error = read_plan(&mut "{\"contract\":2}\n".as_bytes()).unwrap_err();
+        assert_eq!(error, PlanError::Contract(2.into()));
+        assert!(
+            error
+                .to_string()
+                .starts_with("the plan speaks contract 2; this tool speaks contract 1"),
+            "{error}"
+        );
+        let error = read_plan(&mut "{\"contract\":\"1\",\"later\":true}\n".as_bytes()).unwrap_err();
+        assert_eq!(error, PlanError::Contract("1".into()));
     }
 
     #[test]

@@ -250,10 +250,7 @@ def package_format() -> int:
 # The SDK's packing legs (prebuilt-game-build.yml's matrix): each target, and the Linux server's side.
 SDK_LEGS = (("x86_64-unknown-linux-gnu", ""), ("x86_64-unknown-linux-gnu", "-server"),
             ("x86_64-pc-windows-gnu", ""), ("aarch64-apple-darwin", ""))
-# The SDK's assets beside its index: each packing leg's three slices, each client leg's `cargo-sunrise-mod` (one per
-# target: it serves both sides), one build data and surface (gathered once, tools/prebuilt_game.py gather) and the API
-# source (tools/sdk_api_source.py). What the publish job refuses to release without (`nightly.py sdk-archives`), and
-# what a mod tool's fetch needs.
+# Every asset sdk-publish requires: each leg's slices, each client target's tool, the gathered data and the API source.
 SDK_ARCHIVES = (tuple(f"{kind}-{target}{side}.tar.xz" for target, side in SDK_LEGS
                       for kind in ("runtime", "api", "engine"))
                 + tuple(f"tool-{target}.tar.xz" for target, side in SDK_LEGS if not side)

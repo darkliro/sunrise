@@ -537,8 +537,7 @@ class DailyWorkflowTests(unittest.TestCase):
         from tools.ci import nightly
         build = yaml.load((ROOT / ".github/workflows/prebuilt-game-build.yml").read_text(),
                           Loader=yaml.BaseLoader)["jobs"]["build"]
-        # Each matrix leg packs its three slices, a client leg also its target's tool; the build data and surface are
-        # gathered once from them all.
+        # Each leg packs its three slices and a client leg its target's tool; build data and surface are gathered once.
         legs = build["strategy"]["matrix"]["include"]
         names = {f"{kind}-{entry['target']}{'-server' if entry.get('server') == 'true' else ''}.tar.xz"
                  for entry in legs for kind in ("runtime", "api", "engine")}
