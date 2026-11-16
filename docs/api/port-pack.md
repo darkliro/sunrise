@@ -34,9 +34,29 @@ With `--json`, every line on stdout is one JSON object:
 - The last line is the reply, which has `format`: a work folder's status, a check, or an error.
 - Readers ignore keys they don't know and lines with no key they know.
 
-Exit 0 with a reply, 1 with an error reply (`{"format": 1, "error": string}`, and the same text after `error:` on
-stderr), 1 with no JSON on a command line it doesn't understand (the usage on stderr), 2 for `--json` on
-`upgrade-datapack` or `events`.
+Exit 0 with a reply. Exit 1 with an error reply, and the message after `error:` on stderr. It has the
+`{"kind", "message"}` shape every launcher-split contract uses (`sunrise-server engine-command` and
+`sunrise-prepare extras` too):
+
+```json
+{"format": 1, "error": {"kind": "fetch", "message": "…"}}
+```
+
+`kind` is the step that failed, one per step, with no catch-all:
+
+| `kind` | The step | From |
+| --- | --- | --- |
+| `import` | reading the pack into `pack.json` | `import`, `port` |
+| `inventory` | metadata, jars and classes into `inventory.json` | `inventory`, `port` |
+| `fetch` | getting the portable mods' jars (or reading `inventory.json` for it) | `fetch` |
+| `carry` | carrying the content mods' data and assets over | `carry` |
+| `report` | writing the coverage report | `report` |
+| `check` | checking one mod jar | `check` |
+| `port` | the port step (fetch, carry, report and the profile's packs) | `port`, `port-work` |
+| `status` | reading the work folder back for the reply | every command that ends with a status |
+
+Exit 2, with the usage on stderr and no JSON: a command line it doesn't understand (an unknown command, a missing
+argument, an option without its value), and `--json` on `upgrade-datapack` or `events`.
 
 ### Status reply
 
