@@ -99,7 +99,7 @@ GROUPS = {
         entity_play_bound_sound entity_game_event entity_broadcast_event"""),
     "entity_position": ("Where an entity is and which way it faces, and moving it between places.", """
         entity_position entity_block_position entity_rotation entity_on_ground entity_on_block
-        entity_distance_to_sqr entity_head_yaw entity_direction entity_teleport_to entity_teleport_to_level
+        entity_distance_to_sqr entity_head_yaw entity_direction entity_teleport_to entity_teleport_to_level entity_move_by
         entity_set_rotation entity_set_head_yaw entity_set_hanging_direction entity_set_item_frame_rotation"""),
     "entity_sight": ("What an entity sees: eyes, view and picking.", """
         entity_eye_height entity_eye_position entity_view_vector entity_up_vector entity_pick"""),
