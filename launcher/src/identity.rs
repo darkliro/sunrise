@@ -69,9 +69,9 @@ pub fn game_folder_in(base: &std::path::Path) -> std::path::PathBuf {
 
 /// Product home used by the Windows installer's About link.
 pub const ABOUT_URL: &str = if cfg!(sunrise_fork_launcher) {
-    sunrise_addresses::FORK_LAUNCHER_ABOUT
+    sunrise_launcher_addresses::FORK_LAUNCHER_ABOUT
 } else {
-    sunrise_addresses::LAUNCHER_ABOUT
+    sunrise_launcher_addresses::LAUNCHER_ABOUT
 };
 
 /// Whether the uninstaller may remove `path` as this launcher's own data: the complete owned

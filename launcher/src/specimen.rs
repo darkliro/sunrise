@@ -6,7 +6,7 @@ use crate::glass_ui::{self as ui};
 use crate::theme::Theme;
 use gpui::{div, prelude::*, px};
 use std::sync::LazyLock;
-use sunrise_theme::glass::Glass;
+use sunrise_launcher_theme::glass::Glass;
 
 /// Whether the launcher was opened on the specimen.
 pub fn wanted() -> bool {

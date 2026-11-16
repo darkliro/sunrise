@@ -4,7 +4,7 @@
 //! GitHub's public API to an exact **release asset** (a `.smod`, kept by its SHA-256) or an exact
 //! **commit** (the archive of that commit, whose mod folder is packed into a `.smod`), never to a
 //! branch that moves. The result passes the checks the registry's `.smod`s pass
-//! (`sunrise_mod_package::index::native::Bundle::read`) before anything is installed, and the origin is
+//! (`sunrise_launcher_smod::index::native::Bundle::read`) before anything is installed, and the origin is
 //! kept beside the file (`sunrise-native-mods/<id>.origin.json`) for "check for updates".
 //!
 //! Nothing here runs the mod's code, and nothing here trusts it: the registry has not reviewed it.
@@ -218,7 +218,7 @@ fn commit_of(api: Api, link: &Link, reference: &str) -> Result<String, String> {
     })?;
     found["sha"]
         .as_str()
-        .filter(|s| sunrise_mod_package::manifest::revision(s))
+        .filter(|s| sunrise_launcher_smod::manifest::revision(s))
         .map(str::to_owned)
         .ok_or_else(|| format!("GitHub did not name the commit of {reference}."))
 }
@@ -385,7 +385,7 @@ fn checked(bytes: &[u8], dir: &Path) -> Result<Packed, String> {
     let file = dir.join(format!("{}.smod", &sum[..16]));
     fs::write(&file, bytes).map_err(|e| format!("{}: {e}", file.display()))?;
     let facts =
-        sunrise_mod_package::index::inspect(&sunrise_mod_package::index::Kind::NativeMod, &file)
+        crate::browser::sunrise::inspect(&sunrise_launcher_smod::index::Kind::NativeMod, &file)
             .inspect_err(|_| {
                 let _ = fs::remove_file(&file);
             })?;
@@ -433,7 +433,8 @@ pub fn find_mods(root: &Path) -> Result<Vec<Bundle>, String> {
 
 /// Deterministically package a validated flat mod project.
 pub fn pack(bundle: &Bundle) -> Result<Vec<u8>, String> {
-    sunrise_mod_package::Package::pack_directory(&bundle.dir)
+    crate::browser::sunrise::content_fence(&sunrise_launcher_smod::index::Kind::Mod, &bundle.dir)?;
+    sunrise_launcher_smod::Package::pack_directory(&bundle.dir)
 }
 
 fn download(url: &str) -> Result<Vec<u8>, String> {

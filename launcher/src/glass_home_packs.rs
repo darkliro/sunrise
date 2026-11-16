@@ -7,7 +7,7 @@ use crate::glass_ui::{self as ui, white};
 use glass_home_lists::{danger_button, danger_line, picture};
 use gpui::ExternalPaths;
 use sunrise_launcher::packs::{self, Kind as PackKind, Pack};
-use sunrise_theme::glass::{fill, ink, radius};
+use sunrise_launcher_theme::glass::{fill, ink, radius};
 
 impl Launcher {
     /// Home's Resource packs or Shaders tab: the selected instance's packs of that `kind`.

@@ -10,7 +10,7 @@
 
 use super::*;
 use crate::glass_ui::{self as ui, white};
-use sunrise_theme::glass::{ink, radius};
+use sunrise_launcher_theme::glass::{ink, radius};
 
 /// The list's entries: name and icon. The settings sections, in the mockup's order.
 const SECTIONS: [(&str, &str); 10] = [
@@ -28,7 +28,7 @@ const SECTIONS: [(&str, &str); 10] = [
 
 /// Who made the launcher's look, credited in About.
 const CREDIT: &str = "Xmilon";
-const CREDIT_URL: &str = sunrise_addresses::LAUNCHER_LOOK_CREDIT;
+const CREDIT_URL: &str = sunrise_launcher_addresses::LAUNCHER_LOOK_CREDIT;
 
 /// What the search finds in each section, in [`SECTIONS`]' order: its rows' names and words a
 /// player may look for them by. English; a query matches them and their translation.
@@ -144,7 +144,7 @@ fn section(i: usize) -> Div {
             .child(ui::icon(icon, 18., ui::color(ui::look().accent)))
             .child(
                 ui::text(17., FontWeight::SEMIBOLD, ink::FULL)
-                    .font_family(sunrise_theme::glass::DISPLAY_FONT)
+                    .font_family(sunrise_launcher_theme::glass::DISPLAY_FONT)
                     .child(tr(label).to_string()),
             ),
     )
@@ -397,7 +397,7 @@ impl Launcher {
                     .pr(px(48.))
                     .child(
                         ui::text(22., FontWeight::SEMIBOLD, ink::FULL)
-                            .font_family(sunrise_theme::glass::DISPLAY_FONT)
+                            .font_family(sunrise_launcher_theme::glass::DISPLAY_FONT)
                             .child(tr("Settings").to_string()),
                     ),
             )
@@ -852,7 +852,7 @@ pub(super) fn nav_item(
         .rounded(px(radius::ROW))
         .border_1()
         .cursor_pointer()
-        .font_family(sunrise_theme::glass::FONT)
+        .font_family(sunrise_launcher_theme::glass::FONT)
         .text_size(px(14.))
         .active(|s| s.bg(white(0.1)));
     let d = if on {
@@ -927,7 +927,7 @@ impl Launcher {
             })
             .child(ui::back_edge(radius::ROW, 0., true))
             .cursor_text()
-            .font_family(sunrise_theme::glass::FONT)
+            .font_family(sunrise_launcher_theme::glass::FONT)
             .text_size(px(14.))
             .child(ui::icon(
                 "search-01",

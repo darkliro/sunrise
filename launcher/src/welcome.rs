@@ -4,7 +4,7 @@
 //! so a choice made here is the same one Settings shows later.
 use super::*;
 use crate::glass_ui::{self as ui, white};
-use sunrise_theme::glass::{ink, radius};
+use sunrise_launcher_theme::glass::{ink, radius};
 
 impl Launcher {
     /// Whether the welcome covers the window: a first run (the data question not answered yet),
@@ -77,7 +77,7 @@ impl Launcher {
             .pb(px(14.))
             .child(
                 div()
-                    .font_family(sunrise_theme::glass::DISPLAY_FONT)
+                    .font_family(sunrise_launcher_theme::glass::DISPLAY_FONT)
                     .font_weight(FontWeight::SEMIBOLD)
                     .text_size(px(28.))
                     .line_height(px(34.))

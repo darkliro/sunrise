@@ -10,7 +10,7 @@ use sunrise_launcher::heads;
 use sunrise_launcher::servers::{
     self, Applied, Backup, Entry, Fix, NewServer, Problem, Status, World,
 };
-use sunrise_theme::glass::radius;
+use sunrise_launcher_theme::glass::radius;
 
 #[path = "glass_server_dialog.rs"]
 mod glass_server_dialog;
@@ -3397,14 +3397,14 @@ mod tests {
         std::fs::write(root.path().join("server.toml"), config).unwrap();
         let package = root
             .path()
-            .join(sunrise_mod_package::mod_list::DIR)
+            .join(sunrise_launcher_smod::mod_list::DIR)
             .join("needs_jar");
         std::fs::create_dir_all(&package).unwrap();
         std::fs::write(package.join("sunrise-mod.toml"), format!(
             "id='needs_jar'\nname='Needs jar'\nversion='1'\napi='0.2'\ncapabilities=['registries']\n[[jar]]\nid='fixture'\nversion='1'\nsha512='{}'\n", "a".repeat(128)
         )).unwrap();
         std::fs::write(
-            root.path().join(sunrise_mod_package::mod_list::FILE),
+            root.path().join(sunrise_launcher_smod::mod_list::FILE),
             "mod.needs_jar:true\n",
         )
         .unwrap();

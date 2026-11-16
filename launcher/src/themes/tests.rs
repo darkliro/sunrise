@@ -1,5 +1,5 @@
 use super::*;
-use sunrise_theme::night::{DAWN, NIGHT};
+use sunrise_launcher_theme::night::{DAWN, NIGHT};
 
 fn blend(top: u32, under: u32, alpha: f32) -> u32 {
     let channel = |shift: u32| {
@@ -68,7 +68,7 @@ fn colours_go_to_hsl_and_back() {
 
 #[test]
 fn every_theme_palette_reads_over_its_sky() {
-    use sunrise_theme::night::{over, UNCARDED_STOPS};
+    use sunrise_launcher_theme::night::{over, UNCARDED_STOPS};
 
     let palettes = THEMES.iter().filter_map(|t| t.palette.map(|p| (t.id, *p)));
     for (id, p) in palettes {

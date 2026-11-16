@@ -22,7 +22,7 @@ use std::cell::RefCell;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
-use sunrise_mod_package::index;
+use sunrise_launcher_smod::index;
 
 /// Where replaced files wait for the next start, and their list.
 const KEPT_DIR: &str = "mod-browser/replaced";
@@ -351,10 +351,10 @@ fn update(
         if !content {
             return Ok(());
         }
-        let new_package = sunrise_mod_package::Package::read(new)?;
+        let new_package = sunrise_launcher_smod::Package::read(new)?;
         let old_wasm = old
             .as_deref()
-            .map(sunrise_mod_package::Package::read)
+            .map(sunrise_launcher_smod::Package::read)
             .transpose()?
             .is_some_and(|package| package.manifest.wasm.is_some());
         if old_wasm || new_package.manifest.wasm.is_some() {

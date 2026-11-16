@@ -10,7 +10,7 @@ use sunrise_launcher::{
     jars::{self, Permission},
     launch::{self, Launch},
 };
-use sunrise_mod_package::manifest::JarRef;
+use sunrise_launcher_smod::manifest::JarRef;
 
 pub fn client(mut command: Command, launch: Launch, run: Option<String>, tx: Sender<Msg>) {
     std::thread::spawn(move || {

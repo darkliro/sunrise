@@ -5,7 +5,7 @@ use crate::{
     launch::{self, Launch},
 };
 use std::{fmt, io, path::PathBuf, process::Command};
-use sunrise_mod_package::{
+use sunrise_launcher_smod::{
     manifest::{collect_jar_requirements, JarConflict},
     mod_list::ModList,
     packages,

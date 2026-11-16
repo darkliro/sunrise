@@ -6,7 +6,7 @@ use super::*;
 use crate::glass_ui::{self as ui, white};
 use home_tabs::HomeTab;
 use sunrise_launcher::packs::Kind as PackKind;
-use sunrise_theme::glass::ink;
+use sunrise_launcher_theme::glass::ink;
 
 /// The tabbed panel's own body is at least this tall (`min-h-[340px]`), and so is the patch log.
 const BODY: f32 = 340.;

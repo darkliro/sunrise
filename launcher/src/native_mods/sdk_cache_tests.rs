@@ -1,6 +1,6 @@
 use super::*;
+use sunrise_launcher_release_verify::{sha256_hex, sums_file, SigningKey};
 use sunrise_mod_package::sdk::{Build, Mixins, Surface, Toolchain};
-use sunrise_release_sign::{sha256_hex, sums_file, SigningKey};
 
 const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
 const TRIPLE: &str = "x86_64-unknown-linux-gnu";
@@ -383,7 +383,7 @@ fn a_game_release_names_its_build_through_its_signed_index() {
     let current = "nightly-2026-11-14-0123456";
     publish(
         &base,
-        sunrise_release_sign::NIGHTLY,
+        sunrise_launcher_release_verify::NIGHTLY,
         current,
         &fixture.key,
         index.as_bytes(),
@@ -427,7 +427,10 @@ fn a_game_release_names_its_build_through_its_signed_index() {
     // A snapshot is never read as a Nightly: a snapshot's index and signature served under the
     // Nightly's tags, for a Nightly version of the same date and commit, are refused.
     let as_nightly = "nightly-2026-11-15-0123456";
-    for tag in [sunrise_release_sign::NIGHTLY, "nightly-2026-11-15"] {
+    for tag in [
+        sunrise_launcher_release_verify::NIGHTLY,
+        "nightly-2026-11-15",
+    ] {
         publish(
             &base,
             tag,

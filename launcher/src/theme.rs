@@ -1,12 +1,12 @@
-//! The launcher's view of Sunrise's design tokens (`crates/sunrise-theme`, described in
-//! `docs/design-system.md`): the night look (`sunrise_theme::night`, a night sky or a dawn with
+//! The launcher's view of Sunrise's design tokens (`crates/theme`, described in
+//! `docs/design-system.md`): the night look (`sunrise_launcher_theme::night`, a night sky or a dawn with
 //! Sunrise's violet) in Bricolage Grotesque, with Geist Mono for paths and codes (all bundled, SIL
 //! Open Font License). Screens not rebuilt yet draw the Blocks parts in the night's colours.
 use gpui::{rgb, Hsla, WindowAppearance};
 use std::time::Duration;
 use sunrise_launcher::backend::{Appearance, Settings};
 use sunrise_launcher::themes::{self, Accent};
-use sunrise_theme as tokens;
+use sunrise_launcher_theme as tokens;
 
 pub use tokens::night::{self, Night};
 pub use tokens::{Step, CAPTION, DISPLAY, HEADING, LABEL, MICRO, TITLE, UI, WORDMARK};
@@ -57,7 +57,7 @@ pub struct Theme {
     pub danger: Hsla,
     pub success: Hsla,
     pub warn: Hsla,
-    /// The blocky parts (`sunrise_theme::Blocks`).
+    /// The blocky parts (`sunrise_launcher_theme::Blocks`).
     pub side: Hsla,
     pub panel: Hsla,
     pub raised: Hsla,
@@ -240,14 +240,14 @@ impl Theme {
     /// pages not rebuilt for it yet draw with these tokens comes out as the mockup's parts do,
     /// white text and fills at a few opacities, no borders, no bevels.
     fn glass(self, accent: Accent) -> Self {
-        use sunrise_theme::glass::{fill, ink, Glass, BLUR, DANGER, LIVE, TINT, WARN};
+        use sunrise_launcher_theme::glass::{fill, ink, Glass, BLUR, DANGER, LIVE, TINT, WARN};
         let dark = self.dark;
         // Light: the ink where dark has white, as `glass_ui::white` does.
         let white = |a: f32| {
             if dark {
                 gpui::white().opacity(a)
             } else {
-                c(sunrise_theme::glass::ON_LIGHT).opacity(a)
+                c(sunrise_launcher_theme::glass::ON_LIGHT).opacity(a)
             }
         };
         let none = gpui::transparent_black();

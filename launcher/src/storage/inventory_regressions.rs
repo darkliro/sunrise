@@ -126,7 +126,7 @@ fn hard_linked_outputs_across_entries_count_once() {
 fn referenced_jar_and_uninstrumented_unused_jar_are_kept() {
     use sha2::{Digest, Sha512};
     use std::io::Write;
-    use sunrise_mod_package::{manifest::JarRef, Package};
+    use sunrise_launcher_smod::{manifest::JarRef, Package};
     let home = Home::new();
     fs::create_dir_all(home.0.join("jars")).unwrap();
     let mut archive = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
@@ -183,12 +183,12 @@ fn capable_units_delete_only_after_the_last_game_lease_and_mixed_builds_stay_res
     };
     let root = PathBuf::from(root);
     if std::env::var_os("CLASSIFICATION_GAME").is_some() {
-        sunrise_mod_package::holder::enter();
+        sunrise_launcher_smod::holder::enter();
         let mut command = Command::new(std::env::current_exe().unwrap());
         command.args(std::env::args_os().skip(1));
         let selection =
-            sunrise_mod_package::selection::LaunchArguments::for_command(&command).unwrap();
-        let _capture = sunrise_mod_package::holder::acquire(&selection);
+            sunrise_launcher_smod::selection::LaunchArguments::for_command(&command).unwrap();
+        let _capture = sunrise_launcher_smod::holder::acquire(&selection);
         fs::write(root.join("ready"), b"").unwrap();
         let end = std::time::Instant::now() + std::time::Duration::from_secs(15);
         while !root.join("stop").exists() {

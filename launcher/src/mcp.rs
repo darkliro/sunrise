@@ -15,10 +15,10 @@ use sunrise_launcher::jars::{self, Permission};
 /// What an agent reads before its first call.
 const INSTRUCTIONS: &str = "Manage Sunrise, a Rust reimplementation of Minecraft Java Edition: install versions, prepare them from the player's own Minecraft, start the client or a dedicated server. Every tool is a sunrise-launcher CLI command of the same name (mods_search is sunrise-launcher mods search). Once play started the game, or the player turned on Agent Control in a game they started, the game_* tools play it: game_state, game_ui (every widget of the open screen), game_click, game_goto, game_screenshot...";
 
-/// The revisions this server advertises: `sunrise_mcp` serves them (`2026-07-28` stateless,
+/// The revisions this server advertises: `sunrise_launcher_mcp` serves them (`2026-07-28` stateless,
 /// `2025-06-18` for the clients that still open with `initialize`).
-fn server() -> sunrise_mcp::Server<'static> {
-    sunrise_mcp::Server::new("sunrise-launcher", backend::VERSION, INSTRUCTIONS)
+fn server() -> sunrise_launcher_mcp::Server<'static> {
+    sunrise_launcher_mcp::Server::new("sunrise-launcher", backend::VERSION, INSTRUCTIONS)
 }
 
 struct Session {
@@ -285,7 +285,7 @@ impl Session {
         }
     }
 
-    /// The two tool methods; `sunrise_mcp` answers the protocol's own (`initialize`,
+    /// The two tool methods; `sunrise_launcher_mcp` answers the protocol's own (`initialize`,
     /// `server/discover`) and frames these results for the revision the request speaks.
     fn handle(&mut self, method: &str, params: &Value) -> Result<Value, (i64, String)> {
         match method {
@@ -298,7 +298,7 @@ impl Session {
             }
             // No AI turned on during the session: nothing more runs.
             "tools/call" if backend::no_ai() => {
-                Err((-32000, sunrise_platform::no_ai::REFUSAL.to_string()))
+                Err((-32000, sunrise_launcher::no_ai::REFUSAL.to_string()))
             }
             "tools/call" => {
                 let name = params
@@ -364,10 +364,10 @@ mod tests {
             .unwrap();
         assert_eq!(
             reply["result"]["supportedVersions"],
-            json!(sunrise_mcp::VERSIONS)
+            json!(sunrise_launcher_mcp::VERSIONS)
         );
         assert_eq!(
-            reply["result"]["_meta"][sunrise_mcp::SERVER_INFO_KEY]["name"],
+            reply["result"]["_meta"][sunrise_launcher_mcp::SERVER_INFO_KEY]["name"],
             "sunrise-launcher"
         );
     }

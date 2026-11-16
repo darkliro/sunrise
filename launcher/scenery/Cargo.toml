@@ -8,7 +8,7 @@ publish = false
 
 [dependencies]
 gpui = { package = "gpui-fast", version = "0.1.13" }
-sunrise-theme = { path = "../../crates/sunrise-theme" }
+sunrise-launcher-theme = { path = "../crates/theme" }
 image = { version = "0.25", default-features = false }
 
 [target.'cfg(target_os = "macos")'.dependencies]

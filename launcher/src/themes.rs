@@ -2,13 +2,13 @@
 //! Home.
 //!
 //! An accent is a hue, and the player may pick any of them; seven hues have names, as shortcuts.
-//! Sunrise's violet is the default. Another hue turns the violet tokens (`sunrise_theme::Blocks`'
+//! Sunrise's violet is the default. Another hue turns the violet tokens (`sunrise_launcher_theme::Blocks`'
 //! accent and the main action's face, bevel and lip) to it, keeping their saturation and
 //! lightness, then darkens or lightens each just enough to read as well as the violet does: white
 //! on the face at 4.5:1, the accent at 3:1 on every background.
 use std::path::{Path, PathBuf};
-use sunrise_theme::night::{Land, Mood, Night, SkyArt};
-use sunrise_theme::{contrast, Blocks};
+use sunrise_launcher_theme::night::{Land, Mood, Night, SkyArt};
+use sunrise_launcher_theme::{contrast, Blocks};
 
 /// An accent: a hue in degrees, or none for Sunrise's violet, whose tokens are the palette's own
 /// and stay untouched; and for a colour typed as hex, that colour (the glass look wears it as
@@ -46,7 +46,7 @@ pub enum Look {
     /// screens) instead of the sunset, its plates frosting it.
     Oled,
     /// The glass pages over the theme's own painted sky (`sky.rs`, with its drifting
-    /// [`Mood`](sunrise_theme::night::Mood)) instead of the sunset, its plates frosting it.
+    /// [`Mood`](sunrise_launcher_theme::night::Mood)) instead of the sunset, its plates frosting it.
     Painted,
     /// The square, solid Blocks look (Nord, kept as it was).
     Solid,
@@ -110,7 +110,7 @@ pub const NORD_DARK: Night = Night {
 /// Old School's sky: the night tokens under the sky just before sunrise.
 pub const OLD_SCHOOL_NIGHT: Night = Night {
     sky: [0x0b1030, 0x18225a, 0x232c66, 0x6f6ab4, 0xe2a0b0, 0xffd6a0],
-    ..sunrise_theme::night::NIGHT
+    ..sunrise_launcher_theme::night::NIGHT
 };
 
 /// Old School (once First Light, the launcher's first theme; its id is kept for saved settings):

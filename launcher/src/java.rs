@@ -140,10 +140,35 @@ pub fn runtimes_dir() -> PathBuf {
 
 /// The runtimes in a Mojang `runtime` folder.
 pub fn mojang_runtimes(dir: &Path) -> Vec<Runtime> {
-    sunrise_platform::prepare::java::minecraft_runtimes(dir)
+    minecraft_runtimes(dir)
         .into_iter()
         .filter_map(|home| runtime(home, Source::Mojang))
         .collect()
+}
+
+/// The Java homes the official launcher downloaded into `runtime` (a game directory's
+/// `runtime` folder: `<component>/<platform>/<component>/`, a macOS one in `jre.bundle`).
+pub fn minecraft_runtimes(runtime: &Path) -> Vec<PathBuf> {
+    let children = |dir: &Path| -> Vec<PathBuf> {
+        let mut paths: Vec<PathBuf> = fs::read_dir(dir)
+            .map(|entries| entries.flatten().map(|e| e.path()).collect())
+            .unwrap_or_default();
+        paths.sort();
+        paths
+    };
+    let mut homes = Vec::new();
+    for component in children(runtime) {
+        for platform in children(&component) {
+            let home = platform.join(component.file_name().unwrap_or_default());
+            for home in [home.join("jre.bundle/Contents/Home"), home] {
+                if home.join("bin").join(java_program()).is_file() {
+                    homes.push(home);
+                    break;
+                }
+            }
+        }
+    }
+    homes
 }
 
 /// Java homes installed on this computer: JAVA_HOME, the PATH's, then the folders installers use,

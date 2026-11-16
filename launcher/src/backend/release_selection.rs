@@ -1,6 +1,6 @@
 //! Resolve a published release's channel or exact installed version.
 use super::Release;
-use sunrise_release_sign::Channel;
+use sunrise_launcher_release_verify::Channel;
 
 /// The snapshot tagged `tag` (`snapshot-<date>-<commit>`, docs/release-flow.md "Snapshot"), looked
 /// up by its tag alone, or nothing for any other tag. No list or update ever offers a snapshot, so a
@@ -10,7 +10,7 @@ pub(super) fn snapshot(tag: &str) -> Result<Vec<Release>, String> {
     if Channel::of(tag) != Some(Channel::Snapshot) {
         return Ok(Vec::new());
     }
-    if !sunrise_release_sign::is_build(Channel::Snapshot, tag) {
+    if !sunrise_launcher_release_verify::is_build(Channel::Snapshot, tag) {
         return Err(format!(
             "{tag} is not a snapshot's snapshot-<date>-<commit>."
         ));

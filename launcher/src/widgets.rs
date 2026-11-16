@@ -74,7 +74,7 @@ pub(crate) fn hover_fade(
     layer: impl FnOnce() -> Div,
     paint: impl Fn(Div, f32) -> Div + 'static,
 ) -> AnyElement {
-    hover_ease(id, layer, paint, sunrise_theme::QUICK)
+    hover_ease(id, layer, paint, sunrise_launcher_theme::QUICK)
 }
 
 /// [`hover_fade`] on any motion: the spring for the site's moving parts, QUICK for colour.
@@ -82,7 +82,7 @@ pub(crate) fn hover_ease(
     id: &SharedString,
     layer: impl FnOnce() -> Div,
     paint: impl Fn(Div, f32) -> Div + 'static,
-    on: sunrise_theme::Motion,
+    on: sunrise_launcher_theme::Motion,
 ) -> AnyElement {
     let state = HOVER.lock().unwrap();
     // Each transition gets its own animation id, from when it started, so it plays once.
@@ -794,9 +794,13 @@ pub(crate) fn thousands(n: u64) -> String {
 pub(crate) fn caps(s: impl AsRef<str>) -> Div {
     // The glass look writes these as the mockup's small headings (`h3`): 13 px, medium.
     if glass_ui::on() {
-        return glass_ui::text(13., FontWeight::MEDIUM, sunrise_theme::glass::ink::BODY)
-            .line_height(px(19.5))
-            .child(s.as_ref().to_string());
+        return glass_ui::text(
+            13.,
+            FontWeight::MEDIUM,
+            sunrise_launcher_theme::glass::ink::BODY,
+        )
+        .line_height(px(19.5))
+        .child(s.as_ref().to_string());
     }
     text(theme::MICRO).child(s.as_ref().to_uppercase())
 }
@@ -854,7 +858,7 @@ pub(crate) fn progress_bar(fraction: Option<(f32, f32)>, t: &Theme) -> Div {
         .when(t.glass, |d| {
             d.h(px(4.))
                 .rounded_full()
-                .bg(glass_ui::white(sunrise_theme::glass::fill::ACTIVE))
+                .bg(glass_ui::white(sunrise_launcher_theme::glass::fill::ACTIVE))
         });
     match fraction {
         Some((from, to)) => {

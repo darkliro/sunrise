@@ -50,14 +50,14 @@ pub struct Pack {
 }
 
 fn shader_key(path: &Path) -> Option<String> {
-    if !sunrise_shader_api::package::is_pack(path) {
+    if !sunrise_launcher_shader_api::package::is_pack(path) {
         return None;
     }
     let manifest = if path.is_dir() {
-        sunrise_shader_api::Pack::read_manifest(path)
+        sunrise_launcher_shader_api::Pack::read_manifest(path)
     } else {
         let mut zip = sunrise_port_pack::zip_intake::open(fs::File::open(path).ok()?).ok()?;
-        sunrise_shader_api::Pack::read_zip_manifest(&mut zip)
+        sunrise_launcher_shader_api::Pack::read_zip_manifest(&mut zip)
     }
     .ok()?;
     Some(format!("sunrise:{}", manifest.id))

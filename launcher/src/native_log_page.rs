@@ -9,7 +9,7 @@ use super::*;
 use crate::glass_ui::{self as ui, white};
 use gpui::{ClipboardItem, ScrollHandle, SharedString};
 use sunrise_launcher::native_mods;
-use sunrise_theme::glass::{ink, radius};
+use sunrise_launcher_theme::glass::{ink, radius};
 
 /// How much of the log the panel shows: its last lines. Copy log still copies all of it.
 const SHOWN: usize = LOG_LINES;
@@ -249,7 +249,7 @@ impl Launcher {
                     .gap(px(4.))
                     .child(
                         div()
-                            .font_family(sunrise_theme::glass::DISPLAY_FONT)
+                            .font_family(sunrise_launcher_theme::glass::DISPLAY_FONT)
                             .font_weight(FontWeight::SEMIBOLD)
                             .text_size(px(18.))
                             .text_color(white(ink::FULL))

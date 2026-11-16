@@ -17,8 +17,8 @@ pub fn select_after_update(selected: Option<&str>, installed_before: &[String]) 
         Some(s)
             if crate::build_import::is_imported(s)
                 || crate::developer_install::uses_developer(s)
-                || sunrise_release_sign::Channel::of(s)
-                    == Some(sunrise_release_sign::Channel::Snapshot) =>
+                || sunrise_launcher_release_verify::Channel::of(s)
+                    == Some(sunrise_launcher_release_verify::Channel::Snapshot) =>
         {
             false
         }

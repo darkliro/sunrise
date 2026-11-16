@@ -120,7 +120,7 @@ impl Launcher {
         let mut cards = div().flex().flex_wrap().gap(px(10.));
         for (id, name, about, p) in options {
             let accent = themes::starting_accent(id, &self.settings.theme_accents).rgb();
-            let label = sunrise_theme::glass::Glass::new(accent, 0., 0.).on_accent;
+            let label = sunrise_launcher_theme::glass::Glass::new(accent, 0., 0.).on_accent;
             let chosen = current == id;
             let preview = div()
                 .flex()

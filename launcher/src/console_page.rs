@@ -428,7 +428,7 @@ impl Launcher {
     /// patterns. Dark appearance only.
     pub(super) fn glass_console(&mut self, cx: &mut Context<Self>) -> Option<Div> {
         use crate::glass_ui::{self as ui, white};
-        use sunrise_theme::glass::{ink, radius};
+        use sunrise_launcher_theme::glass::{ink, radius};
         let t = self.theme;
         let logs = self
             .client_home

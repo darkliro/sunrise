@@ -745,15 +745,15 @@ fn follow_player(game_home: &Path, home: &Path) {
             let _ = fs::copy(game_home.join(f), home.join(f));
         }
     }
-    let consent = sunrise_telemetry::consent::Consent::path(game_home);
+    let consent = sunrise_launcher_telemetry::consent::Consent::path(game_home);
     if consent.is_file() {
-        let to = sunrise_telemetry::consent::Consent::path(home);
+        let to = sunrise_launcher_telemetry::consent::Consent::path(home);
         let _ = fs::create_dir_all(to.parent().unwrap());
         let _ = fs::copy(consent, to);
     }
-    let no_ai = sunrise_platform::no_ai::is_on(game_home);
-    if sunrise_platform::no_ai::is_on(home) != no_ai {
-        let _ = sunrise_platform::no_ai::set(home, no_ai);
+    let no_ai = crate::no_ai::is_on(game_home);
+    if crate::no_ai::is_on(home) != no_ai {
+        let _ = crate::no_ai::set(home, no_ai);
     }
 }
 

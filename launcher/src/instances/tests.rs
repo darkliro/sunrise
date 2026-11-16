@@ -236,7 +236,7 @@ fn an_instance_follows_the_players_answers() {
     put(&main.join("options.txt"), "fov:90\n");
     put(&main.join("sunrise-player.txt"), "name:Player123\n");
     put(&main.join("telemetry/consent.json"), r#"{"version":1}"#);
-    sunrise_platform::no_ai::set(&main, true).unwrap();
+    crate::no_ai::set(&main, true).unwrap();
     put(&own.join("options.txt"), "fov:70\n");
     follow_player(&main, &own);
     assert_eq!(
@@ -251,10 +251,10 @@ fn an_instance_follows_the_players_answers() {
         fs::read_to_string(own.join("telemetry/consent.json")).unwrap(),
         r#"{"version":1}"#
     );
-    assert!(sunrise_platform::no_ai::is_on(&own));
-    sunrise_platform::no_ai::set(&main, false).unwrap();
+    assert!(crate::no_ai::is_on(&own));
+    crate::no_ai::set(&main, false).unwrap();
     follow_player(&main, &own);
-    assert!(!sunrise_platform::no_ai::is_on(&own));
+    assert!(!crate::no_ai::is_on(&own));
     fs::remove_dir_all(&root).unwrap();
 }
 

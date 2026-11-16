@@ -123,7 +123,7 @@ impl Entry {
             // `.developer`), and the older single-archive caches (`<commit>-sunrise-prebuilt-v<n>-
             // <target>`), which native builds no longer read but eviction must still recognize.
             let rest = rest.strip_suffix(".developer").unwrap_or(rest);
-            let current = sunrise_mod_package::index::native::prebuilt_prefix();
+            let current = sunrise_launcher_smod::index::native::prebuilt_prefix();
             let target = [
                 "sunrise-prebuilt-v3-",
                 "sunrise-prebuilt-v4-",
@@ -652,7 +652,7 @@ impl Storage {
         // Also refuse an external Cargo holding a target lock before starting a cleanup.
         self.lease.bytes()?;
         if clear.is_some() || all {
-            use sunrise_mod_package::runtime_leases::{cleanup::Cleanup, Error as LeaseError};
+            use sunrise_launcher_smod::runtime_leases::{cleanup::Cleanup, Error as LeaseError};
             match Cleanup::existing(&backend::data_dir()) {
                 Ok(cleanup) => {
                     cleanup.collect_records()?;
@@ -809,7 +809,7 @@ fn old_logs(entries: &mut Vec<Entry>, home: &Root) -> Result<(), Error> {
 }
 
 fn unused_jars(entries: &mut Vec<Entry>, home: &Root) -> Result<(), Error> {
-    use sunrise_mod_package::{
+    use sunrise_launcher_smod::{
         mod_list::{DIR, NATIVE_DIR},
         Package,
     };
@@ -820,7 +820,7 @@ fn unused_jars(entries: &mut Vec<Entry>, home: &Root) -> Result<(), Error> {
     let mut referenced = HashSet::new();
     for directory in [DIR, NATIVE_DIR] {
         let path = Entry::fixed(home, Path::new(directory), Category::OtherCaches)?.path;
-        for package in sunrise_mod_package::find(&path) {
+        for package in sunrise_launcher_smod::find(&path) {
             // A malformed package cannot prove a jar is unused. Retain all jars in that case.
             let Ok(package) = Package::read(&package) else {
                 return Ok(());
@@ -1015,16 +1015,16 @@ mod eviction_tests {
         }
         fs::write(
             leased.join(backend::CLIENT),
-            sunrise_mod_package::holder::CAPABILITY,
+            sunrise_launcher_smod::holder::CAPABILITY,
         )
         .unwrap();
         fs::write(legacy.join(backend::CLIENT), b"pre-holder game").unwrap();
         crate::run_leases::publish(&leased).unwrap();
-        let registry = sunrise_mod_package::runtime_leases::Registry::existing(&home.0).unwrap();
+        let registry = sunrise_launcher_smod::runtime_leases::Registry::existing(&home.0).unwrap();
         let _game = registry
             .lock(
-                &sunrise_mod_package::runtime_leases::open_directory(&leased).unwrap(),
-                sunrise_mod_package::locks::LockMode::Shared,
+                &sunrise_launcher_smod::runtime_leases::open_directory(&leased).unwrap(),
+                sunrise_launcher_smod::locks::LockMode::Shared,
             )
             .unwrap();
         let storage = Storage::at(&home.0).unwrap();

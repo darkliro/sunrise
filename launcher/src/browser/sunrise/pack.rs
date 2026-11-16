@@ -4,13 +4,13 @@
 //! mods in `home/sunrise-mods/`, each downloaded and checked against the index like any
 //! registry mod, turned on or off as the pack says. The pack's overrides (settings, resource
 //! packs, a mod's saved settings) are copied in once, when it is installed.
-use super::{fetch, index, install_version, local, newest, Index};
+use super::{check_file, fetch, index, install_version, local, newest, Index};
 use crate::browser::{java, FileRef};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use sunrise_mod_package::{index as idx, modpack::Modpack};
+use sunrise_launcher_smod::{index as idx, modpack::Modpack};
 
 const RECORD: &str = "pack.json";
 
@@ -116,7 +116,7 @@ fn install_version_in(
     let path = fetch(&file, &work.join("downloads"), local, &|f| {
         progress(&line, f)
     })?;
-    idx::check_file(index, p, v, &path).inspect_err(|_| {
+    check_file(index, p, v, &path).inspect_err(|_| {
         let _ = fs::remove_file(&path);
     })?;
     let pack = Modpack::read(&path)?;
@@ -204,7 +204,7 @@ mod tests {
     /// [`registry`] with the pack at `pack_version`.
     fn registry_at(dir: &Path, pack_version: &str, on: bool, extra: &str) -> Index {
         let smod_src = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../crates/sunrise-mod-package/tests/index/coords_hud-0.1.0.smod");
+            .join("crates/smod/tests/index/coords_hud-0.1.0.smod");
         let smod = dir.join("coords_hud-0.1.0.smod");
         fs::copy(smod_src, &smod).unwrap();
         let smod_sha = idx::sha256_file(&smod).unwrap();

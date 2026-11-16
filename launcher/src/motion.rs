@@ -8,7 +8,7 @@ use gpui::{px, Animation, AnimationExt, AnyElement, Div, ElementId, IntoElement,
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::time::Instant;
-use sunrise_theme as tokens;
+use sunrise_launcher_theme as tokens;
 
 /// `hzl-pop`: `0.2s cubic-bezier(0.2, 0.7, 0.2, 1)`, from transparent and 6 px lower.
 pub const POP: tokens::Motion = tokens::Motion {

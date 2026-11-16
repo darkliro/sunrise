@@ -10,7 +10,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use sunrise_launcher::instances::{Icon, Instance, Kind as InstanceKind};
-use sunrise_theme::glass::{fill, ink, radius};
+use sunrise_launcher_theme::glass::{fill, ink, radius};
 
 /// The rail's distance from the window's edges (`m-3.5`).
 pub const MARGIN: f32 = 14.;
@@ -39,7 +39,7 @@ pub fn keep_clear(w: f32, h: f32, home: bool) -> rain::Keep {
 }
 
 /// How the rail opens and shuts: quick, settling from a little past its width.
-const RAIL_MOTION: sunrise_theme::Motion = sunrise_theme::Motion {
+const RAIL_MOTION: sunrise_launcher_theme::Motion = sunrise_launcher_theme::Motion {
     name: "rail",
     ms: 320,
     curve: [0.22, 0.9, 0.3, 1.08],
@@ -171,9 +171,9 @@ impl Launcher {
             .rounded(r)
             .bg(ui::color(colour))
             .font_family(if letter >= 40. {
-                sunrise_theme::glass::DISPLAY_FONT
+                sunrise_launcher_theme::glass::DISPLAY_FONT
             } else {
-                sunrise_theme::glass::HEADING_FONT
+                sunrise_launcher_theme::glass::HEADING_FONT
             })
             .font_weight(FontWeight::SEMIBOLD)
             .text_size(px(letter))
@@ -283,7 +283,7 @@ impl Launcher {
                 &self.rooms,
                 &room_key,
                 &i.name,
-                sunrise_theme::glass::FONT,
+                sunrise_launcher_theme::glass::FONT,
                 14.,
                 FontWeight::SEMIBOLD,
             );

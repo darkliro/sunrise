@@ -19,7 +19,7 @@ pub fn issues_url() -> String {
 }
 pub const README_URL: &str = "https://github.com/sunrise-org/sunrise/blob/main/launcher/README.md";
 /// The players' page on connecting an AI agent (the website's docs/agents.md).
-pub const AGENT_DOCS_URL: &str = sunrise_addresses::AGENT_DOCS;
+pub const AGENT_DOCS_URL: &str = sunrise_launcher_addresses::AGENT_DOCS;
 /// This launcher's version: the release workflow sets `SUNRISE_LAUNCHER_VERSION` from the
 /// tag it builds (no version-bump commits); other builds say Cargo.toml's.
 pub const VERSION: &str = version_or(option_env!("SUNRISE_LAUNCHER_VERSION"));
@@ -737,7 +737,7 @@ fn game_releases_with(
     asset: Option<&str>,
     fallback: Option<&str>,
 ) -> Vec<Release> {
-    let keep = |tag: &str| is_game_tag(tag) || sunrise_release_sign::is_nightly(tag);
+    let keep = |tag: &str| is_game_tag(tag) || sunrise_launcher_release_verify::is_nightly(tag);
     let mut out = parse_releases(list, asset, keep);
     if fallback.is_some() {
         // The same releases in the same order: only the asset looked for differs.
@@ -748,10 +748,10 @@ fn game_releases_with(
         }
     }
     for r in &mut out {
-        if sunrise_release_sign::is_nightly(&r.tag) {
+        if sunrise_launcher_release_verify::is_nightly(&r.tag) {
             let version = crate::nightly::version_of(r);
             let tag = std::mem::replace(&mut r.tag, version);
-            r.prerelease = tag != sunrise_release_sign::NIGHTLY;
+            r.prerelease = tag != sunrise_launcher_release_verify::NIGHTLY;
             r.nightly = Some(tag);
         }
     }
@@ -1041,7 +1041,7 @@ fn signed_digest(tag: &str, asset: &str) -> Result<String, String> {
     crate::signed::digest(
         tag,
         asset,
-        &sunrise_release_sign::trusted_keys_for(REPO),
+        &sunrise_launcher_release_verify::trusted_keys_for(REPO),
         fetch_small,
     )
 }
@@ -1097,7 +1097,7 @@ fn write_checked(
     progress: &impl Fn(f32),
 ) -> Result<(), String> {
     let mut file = fs::File::create(to).map_err(|e| e.to_string())?;
-    let mut hash = sunrise_release_sign::Sha256::default();
+    let mut hash = sunrise_launcher_release_verify::Sha256::default();
     let (mut done, mut buf) = (0u64, vec![0u8; 1 << 16]);
     loop {
         let n = reader
@@ -1111,7 +1111,7 @@ fn write_checked(
         done += n as u64;
         progress((done as f32 / size.max(1) as f32).min(1.0) * 0.9);
     }
-    sunrise_release_sign::check(name, sha256, &hash.hex())
+    sunrise_launcher_release_verify::check(name, sha256, &hash.hex())
 }
 
 fn unpack(archive: &Path, url: &str, to: &Path) -> Result<(), String> {
@@ -1166,7 +1166,7 @@ pub fn install(release: &Release, progress: impl Fn(f32)) -> Result<(), String> 
                 github_tag,
                 &version,
                 asset,
-                &sunrise_release_sign::trusted_keys_for(REPO),
+                &sunrise_launcher_release_verify::trusted_keys_for(REPO),
                 fetch_small,
             )?
         }
@@ -2524,15 +2524,15 @@ pub fn game_home() -> PathBuf {
     crate::identity::game_folder_in(&dirs::data_dir().unwrap_or_else(std::env::temp_dir))
 }
 
-/// Whether No AI is on: every AI feature hidden and off (`sunrise_platform::no_ai`, kept in the
+/// Whether No AI is on: every AI feature hidden and off (`no_ai`, kept in the
 /// game's `sunrise-extras.txt` so the game reads the same switch).
 pub fn no_ai() -> bool {
-    sunrise_platform::no_ai::is_on(&game_home())
+    crate::no_ai::is_on(&game_home())
 }
 
 /// Turns No AI on or off for the launcher and the game.
 pub fn set_no_ai(on: bool) -> Result<(), String> {
-    sunrise_platform::no_ai::set(&game_home(), on).map_err(|e| format!("Could not save No AI: {e}"))
+    crate::no_ai::set(&game_home(), on).map_err(|e| format!("Could not save No AI: {e}"))
 }
 
 // ----- Logs and crash reports ---------------------------------------------------------------------
@@ -3067,10 +3067,12 @@ pub const SIGN_IN_HINT: &str = "Sign in with `sunrise-launcher account sign-in`.
 
 /// Start the game straight into a friend's world: `--server friend:CODE`.
 pub fn join_friend(cmd: &mut Command, code: &str) -> Result<(), String> {
-    sunrise_friends::invite::parse_detailed(code).map_err(|e| e.to_string())?;
+    sunrise_launcher_friends::invite::parse_detailed(code).map_err(|e| e.to_string())?;
     let code: String = code.chars().filter(|c| !c.is_whitespace()).collect();
-    cmd.arg("--server")
-        .arg(format!("{}{code}", sunrise_friends::ADDRESS_PREFIX));
+    cmd.arg("--server").arg(format!(
+        "{}{code}",
+        sunrise_launcher_friends::ADDRESS_PREFIX
+    ));
     Ok(())
 }
 
@@ -3706,7 +3708,7 @@ pub(crate) fn process_alive(pid: u32) -> bool {
 
 fn file_sha256(path: &Path) -> Result<String, String> {
     let mut file = fs::File::open(path).map_err(|e| e.to_string())?;
-    let mut hash = sunrise_release_sign::Sha256::default();
+    let mut hash = sunrise_launcher_release_verify::Sha256::default();
     let mut buf = vec![0u8; 1 << 16];
     loop {
         let n = file.read(&mut buf).map_err(|e| e.to_string())?;
@@ -3737,7 +3739,7 @@ pub fn place_checked(
         .map(|ending| stage.join(format!("download{ending}")))
         .find(|path| path.is_file())
         .ok_or_else(not_staged)?;
-    sunrise_release_sign::check(&staged.tag, &staged.sha256, &file_sha256(&archive)?)?;
+    sunrise_launcher_release_verify::check(&staged.tag, &staged.sha256, &file_sha256(&archive)?)?;
     let payload = if staged.payload == archive {
         archive
     } else {
@@ -4318,13 +4320,15 @@ impl Settings {
     pub fn glass_tint(&self) -> f32 {
         self.glass
             .filter(|v| v.is_finite())
-            .map_or(sunrise_theme::glass::TINT, |v| v.clamp(0., 16.) / 100.)
+            .map_or(sunrise_launcher_theme::glass::TINT, |v| {
+                v.clamp(0., 16.) / 100.
+            })
     }
     /// The plates' blur in px (0 to 48).
     pub fn glass_blur(&self) -> f32 {
         self.blur
             .filter(|v| v.is_finite())
-            .map_or(sunrise_theme::glass::BLUR, |v| v.clamp(0., 48.))
+            .map_or(sunrise_launcher_theme::glass::BLUR, |v| v.clamp(0., 48.))
     }
     /// Whether the cheaper scene is on ([`performance`](Self::performance)).
     pub fn performance(&self) -> bool {
@@ -4420,7 +4424,7 @@ mod tests {
         let dir = versions.join("v0.2.0");
         fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join(COMPLETE), b"").unwrap();
-        fs::write(dir.join(CLIENT), sunrise_mod_package::holder::CAPABILITY).unwrap();
+        fs::write(dir.join(CLIENT), sunrise_launcher_smod::holder::CAPABILITY).unwrap();
         crate::run_leases::publish(&dir).unwrap();
         let running = fs::File::options()
             .read(true)
@@ -5821,8 +5825,8 @@ pub fn {f}("
         let dir = scratch("save-checked");
         let to = dir.join("download.zip");
         let bytes: &[u8] = b"the launcher";
-        let right = sunrise_release_sign::sha256_hex(bytes);
-        let wrong = sunrise_release_sign::sha256_hex(b"something else");
+        let right = sunrise_launcher_release_verify::sha256_hex(bytes);
+        let wrong = sunrise_launcher_release_verify::sha256_hex(b"something else");
         fs::write(&to, b"finished earlier").unwrap();
 
         assert!(save_checked(bytes, 0, "asset", &wrong, &to, &|_: f32| {}).is_err());

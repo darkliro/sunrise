@@ -1176,7 +1176,7 @@ pub fn run() -> Option<i32> {
     let cli = Cli::from_arg_matches(&definition.get_matches()).unwrap_or_else(|e| e.exit());
     let command = cli.command?;
     let result = match command {
-        Cmd::Mcp | Cmd::AgentConfig { .. } if no_ai => Err(sunrise_platform::no_ai::REFUSAL.into()),
+        Cmd::Mcp | Cmd::AgentConfig { .. } if no_ai => Err(sunrise_launcher::no_ai::REFUSAL.into()),
         Cmd::Mcp => crate::mcp::serve().map(|()| 0),
         command => {
             let result = execute(command, cli.json);
@@ -2075,7 +2075,7 @@ fn account_command(action: AccountCmd, as_json: bool) -> Result<(), String> {
 /// `data`: the same consent as Settings → Data collection.
 fn data(action: DataCmd, as_json: bool) -> Result<(), String> {
     use sunrise_launcher::telemetry;
-    let review = |item: &sunrise_telemetry::Item, yes: bool| -> Result<bool, String> {
+    let review = |item: &sunrise_launcher_telemetry::Item, yes: bool| -> Result<bool, String> {
         println!(
             "{}",
             serde_json::to_string_pretty(item).map_err(|e| e.to_string())?
@@ -2109,7 +2109,7 @@ fn data(action: DataCmd, as_json: bool) -> Result<(), String> {
                 println!("{name}: {}", if on { "on" } else { "off" });
             }
             println!("Waiting to be sent: {}", status["waiting"]);
-            match sunrise_telemetry::endpoint() {
+            match sunrise_launcher_telemetry::endpoint() {
                 Some(url) => println!("Server: {url}"),
                 None => println!("Server: turned off (SUNRISE_TELEMETRY_URL=off), nothing is sent"),
             }
@@ -2130,14 +2130,14 @@ fn data(action: DataCmd, as_json: bool) -> Result<(), String> {
         DataCmd::Delete => println!("{}", telemetry::delete_my_data()?),
         DataCmd::Send => println!("{:?}", telemetry::send()),
         DataCmd::Bug { text, log, yes } => {
-            telemetry::ensure_allowed(sunrise_telemetry::Kind::Bug)?;
+            telemetry::ensure_allowed(sunrise_launcher_telemetry::Kind::Bug)?;
             let item = telemetry::bug_report(&text, log)?;
             if review(&item, yes)? {
                 println!("{}", telemetry::submit(&item)?);
             }
         }
         DataCmd::Benchmark { file, yes } => {
-            telemetry::ensure_allowed(sunrise_telemetry::Kind::Benchmark)?;
+            telemetry::ensure_allowed(sunrise_launcher_telemetry::Kind::Benchmark)?;
             let item = telemetry::benchmark_report(&file)?;
             if review(&item, yes)? {
                 println!("{}", telemetry::submit(&item)?);
@@ -3697,8 +3697,8 @@ mod tests {
             .parse()
             .unwrap();
         if role == "child" {
-            assert!(std::env::var_os(sunrise_mod_package::holder::ENV).is_none());
-            assert!(std::env::var_os(sunrise_mod_package::holder::ENTRY).is_none());
+            assert!(std::env::var_os(sunrise_launcher_smod::holder::ENV).is_none());
+            assert!(std::env::var_os(sunrise_launcher_smod::holder::ENTRY).is_none());
             use std::io::IsTerminal;
             let shape = format!(
                 "{}:{}:{}",

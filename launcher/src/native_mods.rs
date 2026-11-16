@@ -555,7 +555,7 @@ pub fn revision_of(version: &str) -> Result<String, String> {
     sdk_cache::build_of(
         version,
         &sdk_cache::Base::from_env(),
-        &sunrise_release_sign::sdk_keys_for(backend::REPO),
+        &sunrise_launcher_release_verify::sdk_keys_for(backend::REPO),
     )
     .map_err(|refusal| refusal.to_string())
 }
@@ -1325,7 +1325,7 @@ fn pipeline(
     let revision = build_revision(base, built_on.as_ref())?;
     let developer = crate::developer_install::is_developer(origin);
     let sdk_base = sdk_cache::Base::from_env();
-    let keys = sunrise_release_sign::sdk_keys_for(backend::REPO);
+    let keys = sunrise_launcher_release_verify::sdk_keys_for(backend::REPO);
     // A developer install's checkout has no published surface to test against: its mods are
     // made for it exactly. Any other build tests each mod made for another build (SDK design §10).
     let sdk = if developer {
@@ -1395,9 +1395,15 @@ fn pipeline(
         }
     }
     if target == Target::Server {
-        let jars = sunrise_mod_package::manifest::collect_jar_requirements(
-            mods.iter()
-                .map(|bundle| (bundle.manifest.id.as_str(), bundle.manifest.jar.as_slice())),
+        let jars: Vec<(&str, Vec<_>)> = mods
+            .iter()
+            .map(|bundle| {
+                let jars = bundle.manifest.jar.iter().map(crate::jars::from_game);
+                (bundle.manifest.id.as_str(), jars.collect())
+            })
+            .collect();
+        let jars = sunrise_launcher_smod::manifest::collect_jar_requirements(
+            jars.iter().map(|(id, jars)| (*id, jars.as_slice())),
         )
         .map_err(|error| crate::jars::LaunchError::Conflict(error).to_string())?;
         crate::jars::prepare(
@@ -2181,7 +2187,7 @@ mod tests {
 
     #[test]
     fn a_mod_saved_into_a_world_is_never_switched_off_without_the_players_choice() {
-        use sunrise_platform::world::nbt::{self, Limits, Tag};
+        use sunrise_launcher_nbt::{self as nbt, Limits, Tag};
         let _guard = scratch_state();
         let home = dir("guard-worlds");
         let world = home.join("saves").join("Home");
@@ -3461,7 +3467,7 @@ mod registry_binary_tests {
     #[test]
     fn source_preparation_lookup_requires_exact_build_and_target() {
         let index = sunrise_mod_package::index::Index::parse(include_str!(
-            "../../crates/sunrise-mod-package/tests/index/index-v1.json"
+            "../crates/smod/tests/index/index-v1.json"
         ))
         .unwrap();
         let mut version = index.project("coords_hud").unwrap().versions[0].clone();

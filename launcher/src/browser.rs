@@ -16,7 +16,7 @@ pub mod java_instance;
 pub mod modrinth;
 pub mod sunrise;
 
-pub use sunrise_mod_package::install_lock::{lock_home, try_lock_home, HomeLockGuard};
+pub use sunrise_launcher_smod::install_lock::{lock_home, try_lock_home, HomeLockGuard};
 
 use serde::{Deserialize, Serialize};
 

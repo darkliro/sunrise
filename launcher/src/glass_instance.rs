@@ -10,7 +10,7 @@ use servers_page::Field;
 use std::sync::Arc;
 use sunrise_launcher::instances::{self, Channel, Icon, Instance};
 use sunrise_launcher::loaders::Kind as Loader;
-use sunrise_theme::glass::{fill, ink, radius};
+use sunrise_launcher_theme::glass::{fill, ink, radius};
 
 /// The loaders Prism Launcher offers, in the mockup's order. Those `loaders::Kind` can install
 /// are shown; the others join when the launcher learns them.
@@ -142,9 +142,9 @@ pub(super) fn letter_tile(colour: Hsla, name: &str, size: f32) -> Div {
         .rounded(px((size * 0.26).round()))
         .bg(colour)
         .font_family(if letter >= 40. {
-            sunrise_theme::glass::DISPLAY_FONT
+            sunrise_launcher_theme::glass::DISPLAY_FONT
         } else {
-            sunrise_theme::glass::HEADING_FONT
+            sunrise_launcher_theme::glass::HEADING_FONT
         })
         .font_weight(FontWeight::SEMIBOLD)
         .text_size(px(letter))
@@ -506,7 +506,7 @@ impl Launcher {
                     .px(px(8.))
                     .rounded(px(radius::CONTROL))
                     .cursor_pointer()
-                    .font_family(sunrise_theme::glass::FONT)
+                    .font_family(sunrise_launcher_theme::glass::FONT)
                     .text_size(px(14.))
                     .text_color(white(ink::BODY))
                     .hover(|s| s.text_color(white(ink::FULL)))
@@ -554,7 +554,7 @@ impl Launcher {
                 div()
                     .mt(px(20.))
                     .truncate()
-                    .font_family(sunrise_theme::glass::DISPLAY_FONT)
+                    .font_family(sunrise_launcher_theme::glass::DISPLAY_FONT)
                     .font_weight(FontWeight::SEMIBOLD)
                     .text_size(px(30.))
                     .line_height(px(32.))
@@ -865,7 +865,7 @@ impl Launcher {
                     .child(
                         div()
                             .truncate()
-                            .font_family(sunrise_theme::glass::DISPLAY_FONT)
+                            .font_family(sunrise_launcher_theme::glass::DISPLAY_FONT)
                             .font_weight(FontWeight::SEMIBOLD)
                             .text_size(px(size))
                             .line_height(px(size * 1.25))
@@ -979,7 +979,7 @@ impl Launcher {
                 .px(px(20.))
                 .rounded(px(radius::ROW))
                 .cursor_pointer()
-                .font_family(sunrise_theme::glass::FONT)
+                .font_family(sunrise_launcher_theme::glass::FONT)
                 .text_size(px(15.))
                 .font_weight(FontWeight::MEDIUM)
                 .text_color(white(ink::BODY))
@@ -1008,7 +1008,7 @@ impl Launcher {
                 .bg(accent)
                 .cursor_pointer()
                 .child(ui::back_tint(radius::LARGE, lit))
-                .font_family(sunrise_theme::glass::FONT)
+                .font_family(sunrise_launcher_theme::glass::FONT)
                 .text_size(px(15.))
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_color(ui::color(self.look.on_accent))

@@ -18,14 +18,14 @@ fn override_value<'a>(command: &'a Command, key: &str) -> Option<Option<&'a std:
 }
 
 // This adapter owns localized launcher errors; the kernel protocol lives below game/launcher.
-pub(crate) struct Registry(Arc<sunrise_mod_package::runtime_leases::Registry>);
-pub(crate) use sunrise_mod_package::runtime_leases::Claim;
+pub(crate) struct Registry(Arc<sunrise_launcher_smod::runtime_leases::Registry>);
+pub(crate) use sunrise_launcher_smod::runtime_leases::Claim;
 impl Registry {
     fn at(data: &Path) -> Result<Arc<Self>, Error> {
         Self::with_release(data, Release::Unlock)
     }
     pub(crate) fn with_release(data: &Path, release: Release) -> Result<Arc<Self>, Error> {
-        sunrise_mod_package::runtime_leases::Registry::with_release(data, release)
+        sunrise_launcher_smod::runtime_leases::Registry::with_release(data, release)
             .map(|registry| Arc::new(Self(registry)))
             .map_err(Into::into)
     }
@@ -76,12 +76,12 @@ pub(crate) fn shared(command: &Command) -> Result<Vec<Claim>, Error> {
                 }
             }
         }
-        let selection = sunrise_mod_package::selection::LaunchArguments::for_command(&game)?;
+        let selection = sunrise_launcher_smod::selection::LaunchArguments::for_command(&game)?;
         paths.push(selection.context.game_dir);
         paths.push(selection.context.home);
         let cwd = command.get_current_dir().unwrap_or(Path::new("."));
         for argument in selection.rest {
-            if let sunrise_mod_package::selection::Argument::Value(name, value) = argument {
+            if let sunrise_launcher_smod::selection::Argument::Value(name, value) = argument {
                 if name == "--resources" {
                     paths.push(cwd.join(value));
                 }
@@ -93,9 +93,9 @@ pub(crate) fn shared(command: &Command) -> Result<Vec<Claim>, Error> {
         for relative in [".sunrise-cache", "wasm-cache", "cache"] {
             crate::storage::mark_used(&home.join(relative))?;
         }
-        use sunrise_mod_package::{mod_list, Package};
+        use sunrise_launcher_smod::{mod_list, Package};
         for folder in [mod_list::DIR, mod_list::NATIVE_DIR] {
-            for path in sunrise_mod_package::find(&home.join(folder)) {
+            for path in sunrise_launcher_smod::find(&home.join(folder)) {
                 if let Ok(package) = Package::read(&path) {
                     if crate::browser::java::is_enabled(&home, &package.manifest.id) {
                         for jar in package.manifest.jar {
@@ -123,9 +123,9 @@ pub(crate) fn shared(command: &Command) -> Result<Vec<Claim>, Error> {
     // prepare_command also runs non-game commands (including hooks and tools), whose
     // arguments must not be interpreted by the game's parser.
     if command.get_args().any(|argument| argument == "--resources") {
-        let arguments = sunrise_mod_package::selection::LaunchArguments::for_command(command)?;
+        let arguments = sunrise_launcher_smod::selection::LaunchArguments::for_command(command)?;
         for argument in arguments.rest {
-            if let sunrise_mod_package::selection::Argument::Value(flag, resources) = argument {
+            if let sunrise_launcher_smod::selection::Argument::Value(flag, resources) = argument {
                 if flag == "--resources" {
                     paths.push(
                         command
@@ -303,7 +303,7 @@ fn spawn_inner(command: &mut Command, piped: bool) -> std::io::Result<std::proce
     let _ = piped;
     #[cfg(unix)]
     {
-        use sunrise_mod_package::{holder, selection::LaunchArguments};
+        use sunrise_launcher_smod::{holder, selection::LaunchArguments};
         let encoded = override_value(command, GAME)
             .flatten()
             .map(std::ffi::OsStr::to_owned);
@@ -352,7 +352,7 @@ fn spawn_inner(command: &mut Command, piped: bool) -> std::io::Result<std::proce
                 };
                 let prepared =
                     holder::Prepared::new(data.clone(), trees, program, &selection.context)?;
-                let marker = sunrise_mod_package::local_control::Marker::runtime()?;
+                let marker = sunrise_launcher_smod::local_control::Marker::runtime()?;
                 let mut holder_command = Command::new(executable);
                 // Private bootstrap ignores arguments; retaining the final command's arguments
                 // also permits receiver harnesses whose process entry parses test filters first.
@@ -508,8 +508,8 @@ pub(crate) fn publish_existing() -> Result<(), Error> {
 }
 
 /// Held from before an executable becomes visible through its completion publication.
-pub(crate) fn installation() -> Result<sunrise_mod_package::runtime_leases::Publication, Error> {
-    use sunrise_mod_package::{
+pub(crate) fn installation() -> Result<sunrise_launcher_smod::runtime_leases::Publication, Error> {
+    use sunrise_launcher_smod::{
         locks::{LockMode, Release},
         runtime_leases::Registry,
     };

@@ -186,7 +186,7 @@ impl GameTools {
             // The child is whichever `sunrise-ctl` the player has installed, so open with the
             // handshake revision: older versions do not know the stateless one.
             "initialize",
-            json!({ "protocolVersion": sunrise_mcp::LEGACY, "capabilities": {},
+            json!({ "protocolVersion": sunrise_launcher_mcp::LEGACY, "capabilities": {},
                     "clientInfo": { "name": "sunrise-launcher", "version": backend::VERSION } }),
         )?;
         tools.send(&json!({ "jsonrpc": "2.0", "method": "notifications/initialized" }))?;

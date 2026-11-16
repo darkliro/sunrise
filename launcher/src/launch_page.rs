@@ -714,7 +714,7 @@ impl Launcher {
     /// selected instance when it isn't yet.
     pub(super) fn glass_hooks(&mut self, cx: &mut Context<Self>) -> Option<Div> {
         use crate::glass_ui as ui;
-        use sunrise_theme::glass::ink;
+        use sunrise_launcher_theme::glass::ink;
         let t = self.theme;
         let selected = self.selected_instance()?.clone();
         if self.launch.as_ref().map(|p| &p.instance) != Some(&selected.id) {
@@ -779,7 +779,7 @@ impl Launcher {
             Ok(None) => ui::text(12.5, FontWeight::NORMAL, ink::NOTE)
                 .child(tr("Saved: nothing runs around the game.")),
             Err(e) => ui::text(12.5, FontWeight::NORMAL, ink::FULL)
-                .text_color(ui::color(sunrise_theme::glass::DANGER_HOVER))
+                .text_color(ui::color(sunrise_launcher_theme::glass::DANGER_HOVER))
                 .child(e),
         });
         body = body.child(div().flex().items_center().gap(px(12.)).children(result));

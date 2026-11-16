@@ -9,7 +9,7 @@ use glass_home_lists::Listener;
 use instance_mods::ModRow;
 use servers_page::Field;
 use sunrise_launcher::github_mods;
-use sunrise_theme::glass::{ink, radius};
+use sunrise_launcher_theme::glass::{ink, radius};
 
 impl Launcher {
     /// Home's Mods tab, for the selected instance.

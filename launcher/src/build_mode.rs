@@ -31,7 +31,7 @@ pub(super) enum ModKind {
 }
 
 impl ModKind {
-    pub(super) fn of(manifest: &sunrise_mod_package::manifest::Manifest) -> Self {
+    pub(super) fn of(manifest: &sunrise_launcher_smod::manifest::Manifest) -> Self {
         if manifest.native.is_some() {
             Self::Native
         } else if manifest.wasm.is_some() {
@@ -374,7 +374,7 @@ impl Launcher {
             .gap(px(12.))
             .p(px(16.))
             .when(t.glass, |d| {
-                d.rounded(px(sunrise_theme::glass::radius::LARGE))
+                d.rounded(px(sunrise_launcher_theme::glass::radius::LARGE))
                     .bg(ui::white(0.04))
             })
             .when(!t.glass, |d| {
@@ -676,7 +676,7 @@ impl Launcher {
                     .children(glyph.map(|g| ui::icon(g, 12., color)))
                     .child(text_in(12., color).child(s.label()))
             }));
-        let radius = sunrise_theme::glass::radius::CONTROL;
+        let radius = sunrise_launcher_theme::glass::radius::CONTROL;
         let icons = div()
             .flex()
             .items_center()
@@ -1165,7 +1165,7 @@ impl Render for NoteTooltip {
 /// Text at `size` px in `color`, in the look's face.
 fn text_in(size: f32, color: Hsla) -> Div {
     div()
-        .font_family(sunrise_theme::glass::FONT)
+        .font_family(sunrise_launcher_theme::glass::FONT)
         .text_size(px(size))
         .line_height(px((size * 1.4).round()))
         .text_color(color)

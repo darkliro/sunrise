@@ -9,7 +9,7 @@
 use super::*;
 use crate::glass_home_tabs::PatchNotes;
 use crate::glass_ui::{self as ui, Tone};
-use sunrise_theme::glass::{ink, radius};
+use sunrise_launcher_theme::glass::{ink, radius};
 
 /// A release's day as the mockup writes it ("Nov 1"), with its time in UTC when known.
 pub(super) fn published(date: &str, time: &str) -> String {

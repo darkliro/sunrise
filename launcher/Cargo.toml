@@ -6,11 +6,13 @@ license = "PolyForm-Shield-1.0.0"
 description = "Downloads, prepares and starts Sunrise builds"
 
 [workspace]
+# The copies in crates/ are checked and tested with the launcher.
+members = ["crates/addresses", "crates/bench", "crates/friends", "crates/smod", "crates/mcp", "crates/nbt", "crates/release-verify", "crates/resolver", "crates/shader-api", "crates/system", "crates/telemetry", "crates/theme"]
+default-members = [".", "crates/addresses", "crates/bench", "crates/friends", "crates/smod", "crates/mcp", "crates/nbt", "crates/release-verify", "crates/resolver", "crates/shader-api", "crates/system", "crates/telemetry", "crates/theme"]
 
 [dependencies]
 # Native mods compile against the signed SDK (`native_mods.rs`); `cargo sunrise-mod native-build` runs the same code.
 sunrise-native-build = { path = "../crates/sunrise-native-build" }
-sunrise-addresses = { path = "../crates/sunrise-addresses" }
 # GPUI Fast (longbridge/gpui-fast): Zed's GPUI with retained views and cached scroll layers, under
 # its own name. wgpu renders on Linux, not blade (#3812).
 gpui = { package = "gpui-fast", version = "0.1.13" }
@@ -40,31 +42,29 @@ dirs = "5"
 sys-locale = "0.3"
 clap = { version = "4", features = ["derive"] }
 clap_complete = "4"
-sunrise-core = { path = "../crates/sunrise-core" }
 sunrise-server-launch = { path = "../crates/sunrise-server-launch" }
 sunrise-prepare = { path = "../crates/sunrise-prepare" }
-sunrise-system = { path = "../crates/sunrise-system" }
-sunrise-protocol = { path = "../crates/sunrise-protocol" }
-sunrise-theme = { path = "../crates/sunrise-theme" }
+# The launcher's own copies of what it used from the game's crates (crates/), so it can leave the game repository.
+sunrise-launcher-addresses = { path = "crates/addresses" }
+sunrise-launcher-bench = { path = "crates/bench" }
+sunrise-launcher-friends = { path = "crates/friends" }
+sunrise-launcher-smod = { path = "crates/smod" }
+sunrise-launcher-mcp = { path = "crates/mcp" }
+sunrise-launcher-nbt = { path = "crates/nbt" }
+sunrise-launcher-release-verify = { path = "crates/release-verify" }
+sunrise-launcher-resolver = { path = "crates/resolver" }
+sunrise-launcher-shader-api = { path = "crates/shader-api" }
+sunrise-launcher-system = { path = "crates/system" }
+sunrise-launcher-telemetry = { path = "crates/telemetry" }
+sunrise-launcher-theme = { path = "crates/theme" }
 # The sunset scene, painted skies, rain and frosted glass (`scenery/`).
 sunrise-launcher-scenery = { path = "scenery" }
-# The engine, through the platform's public API (docs/layers.md): the pinned version, No AI, the preparer,
-# level.dat and servers.dat (the worlds and server lists of instances), and servers' SRV records.
-sunrise-platform = { path = "../crates/sunrise-platform", features = ["prepare", "protocol", "world", "mod-build"] }
-# `sunrise-launcher mcp`: the Model Context Protocol, shared with sunrise-ctl and sunrise-server.
-sunrise-mcp = { path = "../crates/sunrise-mcp" }
-# Join a friend: invite codes (the game does the joining).
-sunrise-friends = { path = "../crates/sunrise-friends" }
+# The engine, through the platform's public API (docs/layers.md): the pinned version, the preparer and the native build.
+sunrise-platform = { path = "../crates/sunrise-platform", features = ["prepare", "mod-build"] }
 # Import modpack: the porting pipeline, run on the player's own files (docs/modpacks.md).
 sunrise-port-pack = { path = "../crates/sunrise-port-pack" }
-# Sunrise's mod registry: its index and the checks a download passes before install.
+# The native build's SDK, mixins and fit test, and the content fence a mod's files pass before install.
 sunrise-mod-package = { path = "../crates/sunrise-mod-package", features = ["index", "prebuilt", "runtime-process"] }
-# Use the game's manifest validation for native shader identities.
-sunrise-shader-api = { path = "../crates/sunrise-shader-api" }
-# Signed updates: archives are checked against the release's signed checksums (docs/security.md).
-sunrise-release-sign = { path = "../crates/sunrise-release-sign" }
-# Opt-in data collection: the consent, the outbox and its upload (docs/telemetry.md).
-sunrise-telemetry = { path = "../crates/sunrise-telemetry" }
 # Deleting a world moves it to the system's trash
 trash = "5"
 # Backup names carry the local time, as vanilla's do
@@ -115,7 +115,8 @@ winreg = "0.56"
 winresource = "0.1"
 
 [dev-dependencies]
-# The mod inventory's `Side` in tests (`mod_api::Side`, which the launcher does not depend on).
+sunrise-launcher-release-verify = { path = "crates/release-verify", features = ["signing"] }
+# The compiled mods a native build's runtime check expects, in its end-to-end test.
 sunrise-mod-vocab = { path = "../crates/sunrise-mod-vocab" }
 libc = "0.2"
 # Tokenize source strings for the translation completeness test, including multiline calls.

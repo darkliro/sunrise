@@ -12,7 +12,7 @@ use crate::glass_ui::{self as ui, white};
 use std::path::PathBuf;
 use sunrise_launcher::browser::Project;
 use sunrise_launcher::instances::Kind as InstanceKind;
-use sunrise_theme::glass::ink;
+use sunrise_launcher_theme::glass::ink;
 
 /// Commands listed at most (`slice(0, 8)`).
 const SHOWN: usize = 8;
@@ -217,7 +217,7 @@ impl Launcher {
             .h(px(48.))
             .px(px(12.))
             .cursor_text()
-            .font_family(sunrise_theme::glass::FONT)
+            .font_family(sunrise_launcher_theme::glass::FONT)
             .text_size(px(15.))
             .text_color(white(ink::FULL))
             .child(ui::icon("search-01", 20., white(0.55)))

@@ -15,7 +15,7 @@ impl Launcher {
     }
 
     pub(crate) fn join_friend(&mut self) {
-        if sunrise_friends::invite::parse(self.friend_code.text()).is_none() {
+        if sunrise_launcher_friends::invite::parse(self.friend_code.text()).is_none() {
             return;
         }
         self.joining = Some(self.friend_code.text().to_string());

@@ -253,8 +253,8 @@ fn is_game(program: &[u8]) -> bool {
     };
     magic.iter().any(|m| program.starts_with(m))
         && program
-            .windows(sunrise_mod_package::game_identity::MARK.len())
-            .any(|w| w == sunrise_mod_package::game_identity::MARK)
+            .windows(sunrise_launcher_smod::game_identity::MARK.len())
+            .any(|w| w == sunrise_launcher_smod::game_identity::MARK)
 }
 
 /// Installs `program` in `versions` as a copy of installed version `base` with it in place of
@@ -393,7 +393,7 @@ mod tests {
         } else {
             b"\x7fELF"
         };
-        [magic, body, &sunrise_mod_package::game_identity::MARK[..]].concat()
+        [magic, body, &sunrise_launcher_smod::game_identity::MARK[..]].concat()
     }
 
     #[test]
@@ -482,25 +482,25 @@ mod tests {
     fn only_a_sunrise_game_for_this_computer_is_imported() {
         assert!(is_game(&program(b"")));
         let marked = program(b"");
-        let unmarked = &marked[..marked.len() - sunrise_mod_package::game_identity::MARK.len()];
+        let unmarked = &marked[..marked.len() - sunrise_launcher_smod::game_identity::MARK.len()];
         assert!(!is_game(unmarked));
         // Retired WIT levels, partial signatures and mutated signatures aren't game identity.
         for mark in [
             &b"sunrise-mod-api-level:0007;"[..],
-            &sunrise_mod_package::game_identity::MARK
-                [..sunrise_mod_package::game_identity::MARK.len() - 1],
+            &sunrise_launcher_smod::game_identity::MARK
+                [..sunrise_launcher_smod::game_identity::MARK.len() - 1],
             &b"sunrise-game-executable:"[..],
         ] {
             assert!(!is_game(&[unmarked, mark].concat()));
         }
-        assert!(!is_game(&sunrise_mod_package::game_identity::MARK));
+        assert!(!is_game(&sunrise_launcher_smod::game_identity::MARK));
         let other = if cfg!(windows) {
             &b"\x7fELF"[..]
         } else {
             &b"MZ"[..]
         };
         assert!(!is_game(
-            &[other, &sunrise_mod_package::game_identity::MARK[..]].concat()
+            &[other, &sunrise_launcher_smod::game_identity::MARK[..]].concat()
         ));
         let d = dir("zip");
         let zip_path = d.join("sunrise-client-windows-x86_64.zip");

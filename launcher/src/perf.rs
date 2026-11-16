@@ -13,7 +13,7 @@ use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
-use sunrise_platform::bench::{self as sunrise_bench, App, Frames, Hardware, Kind, Report};
+use sunrise_launcher_bench::{self as sunrise_bench, App, Frames, Hardware, Kind, Report};
 
 /// The first thing `main` does; every start time counts from here.
 pub fn process_started() -> Instant {

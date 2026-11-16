@@ -6,7 +6,7 @@ use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use sunrise_platform::world::nbt::{self, Limits, Tag};
+use sunrise_launcher_nbt::{self as nbt, Limits, Tag};
 
 /// The lock a running game holds on a world; vanilla's backups leave it out.
 const LOCK: &str = "session.lock";

@@ -4,8 +4,8 @@
 use crate::account::Accounts;
 use crate::backend;
 use std::path::PathBuf;
-use sunrise_system::Machine;
-use sunrise_telemetry::scrub::Scrubber;
+use sunrise_launcher_system::Machine;
+use sunrise_launcher_telemetry::scrub::Scrubber;
 
 /// The newest log lines kept in a report.
 const LOG_LINES: usize = 300;

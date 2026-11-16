@@ -20,7 +20,7 @@
 
 use super::*;
 use crate::glass_ui::{self as ui, white};
-use sunrise_theme::glass::{ink, radius};
+use sunrise_launcher_theme::glass::{ink, radius};
 
 /// The project card's width (`lg:grid-cols-[minmax(0,1fr)_360px]`).
 const DETAIL: f32 = 360.;
@@ -302,7 +302,7 @@ impl Launcher {
                 .bg(white(if open { 0.11 } else { 0.07 }))
                 .hover(|s| s.bg(white(0.11)))
                 .cursor_pointer()
-                .font_family(sunrise_theme::glass::FONT)
+                .font_family(sunrise_launcher_theme::glass::FONT)
                 .text_size(px(14.))
                 .text_color(white(ink::FULL))
                 .child(trf("Sort by: {order}", &[("order", tr(name))]))
@@ -780,7 +780,7 @@ impl Launcher {
                 .child(
                     div()
                         .mt(px(20.))
-                        .font_family(sunrise_theme::glass::DISPLAY_FONT)
+                        .font_family(sunrise_launcher_theme::glass::DISPLAY_FONT)
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_size(px(24.))
                         .line_height(px(30.))

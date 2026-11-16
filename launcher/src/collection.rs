@@ -2,7 +2,7 @@
 //! changes), and its section in Settings. Everything goes through `sunrise_launcher::telemetry`.
 use super::*;
 use sunrise_launcher::telemetry;
-use sunrise_telemetry::{Choices, Consent, Kind as DataKind};
+use sunrise_launcher_telemetry::{Choices, Consent, Kind as DataKind};
 
 /// What the window keeps about data collection.
 pub(crate) struct Collection {
@@ -364,7 +364,7 @@ impl Launcher {
             Some(self.ping_switch("data-ping", cx).into_any_element()),
             &t,
         ));
-        let waiting = sunrise_telemetry::outbox::pending(&telemetry::home()).len();
+        let waiting = sunrise_launcher_telemetry::outbox::pending(&telemetry::home()).len();
         let id = match consent.install_id.as_str() {
             "" => tr("No install ID: nothing has been collected").to_string(),
             id => trf(
@@ -372,7 +372,7 @@ impl Launcher {
                 &[("prefix", &id[..4]), ("suffix", &id[id.len() - 4..])],
             ),
         };
-        let server = if sunrise_telemetry::endpoint().is_some() {
+        let server = if sunrise_launcher_telemetry::endpoint().is_some() {
             trf(
                 "{count} waiting to be sent",
                 &[("count", &waiting.to_string())],

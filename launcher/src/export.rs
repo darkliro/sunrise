@@ -16,7 +16,7 @@ use sha2::Digest;
 use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use sunrise_platform::world::nbt::{self, Limits, Tag};
+use sunrise_launcher_nbt::{self as nbt, Limits, Tag};
 
 /// The game folder's own files that are the instance's settings.
 pub const FILES: [&str; 6] = [

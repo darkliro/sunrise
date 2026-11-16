@@ -15,7 +15,7 @@ use gpui::{
 };
 use std::sync::{Arc, LazyLock};
 use std::time::{Duration, Instant};
-use sunrise_theme::night::{Land, Mood, Night, SkyArt};
+use sunrise_launcher_theme::night::{Land, Mood, Night, SkyArt};
 
 /// Logical pixels per texel: the sky's bands, the stars and the clouds; the sun and skylines.
 const TEXEL: f32 = 4.;
@@ -742,7 +742,7 @@ fn bands(n: &Night, h: f32) -> Vec<(f32, f32, u32)> {
         if n.dark || n.art.land != Land::Plain {
             c
         } else {
-            sunrise_theme::night::over(0xffffff, MORNING, c)
+            sunrise_launcher_theme::night::over(0xffffff, MORNING, c)
         }
     };
     let rows = (h / TEXEL).ceil();
@@ -761,7 +761,7 @@ fn bands(n: &Night, h: f32) -> Vec<(f32, f32, u32)> {
         let mut from = at;
         for k in 0..STEPS {
             let to = (at + span * (k + 1) as f32 / STEPS as f32).round();
-            let c = sunrise_theme::night::over(next, k as f32 / STEPS as f32, n.sky[i]);
+            let c = sunrise_launcher_theme::night::over(next, k as f32 / STEPS as f32, n.sky[i]);
             out.push((from * TEXEL, (to - from) * TEXEL, wash(c)));
             from = to;
         }
@@ -1142,7 +1142,7 @@ impl gpui::Render for SkyView {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sunrise_theme::night::{DAWN, NIGHT, UNCARDED_STOPS};
+    use sunrise_launcher_theme::night::{DAWN, NIGHT, UNCARDED_STOPS};
 
     /// The sky's upper bands, behind text without a plate, hold the night tokens' text colours.
     fn uncarded_bands(n: &Night, h: f32) -> Vec<u32> {
@@ -1187,7 +1187,7 @@ mod tests {
         for n in [NIGHT, DAWN] {
             for c in uncarded_bands(&n, 800.) {
                 for text in [n.ink, n.ink_soft, n.muted] {
-                    let ratio = sunrise_theme::contrast(text, c);
+                    let ratio = sunrise_launcher_theme::contrast(text, c);
                     assert!(ratio >= 4.5, "#{text:06x} on #{c:06x}: {ratio:.2}");
                 }
             }

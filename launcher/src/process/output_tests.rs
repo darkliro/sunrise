@@ -5,7 +5,7 @@ use std::{
     process::{Command, Stdio},
     time::{Duration, Instant},
 };
-use sunrise_mod_package::output::Capture;
+use sunrise_launcher_smod::output::Capture;
 
 fn directory(path: &Path) -> Dir {
     Dir::open_ambient_dir(path, cap_std::ambient_authority()).unwrap()

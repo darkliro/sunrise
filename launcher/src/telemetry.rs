@@ -1,14 +1,14 @@
-//! Opt-in data collection from the launcher (`sunrise_telemetry`): the player's answer, what
+//! Opt-in data collection from the launcher (`sunrise_launcher_telemetry`): the player's answer, what
 //! would be sent, deleting it, bug reports and benchmark uploads, and sending the outbox when
 //! the launcher starts and closes. The window, the CLI and the MCP server all go through here.
 //! Also the live count's side here: what the "I'm playing" ping holds, in words, and reading
-//! how many play now (`sunrise_telemetry::live`).
+//! how many play now (`sunrise_launcher_telemetry::live`).
 use std::path::{Path, PathBuf};
 
-use sunrise_telemetry::payload::{Bug, Crash, Perf, System, Timings};
-use sunrise_telemetry::scrub::Scrubber;
-use sunrise_telemetry::upload::{self, Flush};
-use sunrise_telemetry::{outbox, Choices, Consent, Item, Kind, Payload, Source};
+use sunrise_launcher_telemetry::payload::{Bug, Crash, Perf, System, Timings};
+use sunrise_launcher_telemetry::scrub::Scrubber;
+use sunrise_launcher_telemetry::upload::{self, Flush};
+use sunrise_launcher_telemetry::{outbox, Choices, Consent, Item, Kind, Payload, Source};
 
 use crate::{account::Accounts, backend};
 
@@ -64,8 +64,8 @@ pub fn ping_only_if_allowed(cmd: &mut std::process::Command, allowed: bool) {
 
 /// How many play Sunrise now (exact), if the server says.
 pub fn playing_now() -> Option<u64> {
-    let endpoint = sunrise_telemetry::endpoint()?;
-    sunrise_telemetry::live::fetch(&endpoint)
+    let endpoint = sunrise_launcher_telemetry::endpoint()?;
+    sunrise_launcher_telemetry::live::fetch(&endpoint)
         .ok()
         .map(|count| count.playing)
 }
@@ -81,22 +81,22 @@ pub fn stats_url(website: &str) -> Option<String> {
 /// Sends [`playing_now`] to the window as `Msg::Playing` now and every minute, on its own
 /// thread. Nothing at all when sending is turned off.
 pub fn watch_playing(tx: std::sync::mpsc::Sender<backend::Msg>) {
-    if sunrise_telemetry::endpoint().is_none() {
+    if sunrise_launcher_telemetry::endpoint().is_none() {
         return;
     }
     std::thread::spawn(move || {
         while tx.send(backend::Msg::Playing(playing_now())).is_ok() {
-            std::thread::sleep(sunrise_telemetry::live::INTERVAL);
+            std::thread::sleep(sunrise_launcher_telemetry::live::INTERVAL);
         }
     });
 }
 
 /// A server's players by its server-list status ping, as the game's Multiplayer list sends it
 /// (through the address's SRV record), with a 3-second timeout. None when it doesn't answer.
-pub fn server_players(address: &str) -> Option<sunrise_telemetry::server_status::Players> {
-    let (host, port) = sunrise_telemetry::server_status::split_address(address)?;
-    let (host, port) = sunrise_platform::protocol::server_redirect(&host, port);
-    sunrise_telemetry::server_status::players_at(
+pub fn server_players(address: &str) -> Option<sunrise_launcher_telemetry::server_status::Players> {
+    let (host, port) = sunrise_launcher_telemetry::server_status::split_address(address)?;
+    let (host, port) = sunrise_launcher_resolver::server_redirect(&host, port);
+    sunrise_launcher_telemetry::server_status::players_at(
         address,
         (&host, port),
         std::time::Duration::from_secs(3),
@@ -169,7 +169,7 @@ pub fn preview() -> (String, String) {
         ),
     ];
     let json = serde_json::to_string_pretty(&serde_json::json!({
-        "schema": sunrise_telemetry::SCHEMA,
+        "schema": sunrise_launcher_telemetry::SCHEMA,
         "install_id": consent().install_id,
         "items": examples,
     }))
@@ -189,7 +189,7 @@ pub fn with_example_gpu(mut system: System) -> System {
     system.vram_mb = 8192;
     system.driver = "example: 570.86".into();
     system.backend = "Vulkan".into();
-    system.display = Some(sunrise_telemetry::payload::Display {
+    system.display = Some(sunrise_launcher_telemetry::payload::Display {
         width: 1920,
         height: 1080,
         refresh_hz: 60,
@@ -205,7 +205,7 @@ pub fn delete_my_data() -> Result<String, String> {
     let home = home();
     let mut consent = Consent::load(&home);
     outbox::clear(&home).map_err(|e| e.to_string())?;
-    let remote = match sunrise_telemetry::endpoint() {
+    let remote = match sunrise_launcher_telemetry::endpoint() {
         _ if consent.install_id.is_empty() => "Nothing was ever sent from here.",
         None => {
             "Sending is turned off here (SUNRISE_TELEMETRY_URL=off), so the server was not asked."
@@ -287,7 +287,7 @@ pub fn submit(item: &Item) -> Result<String, String> {
     }
     Ok(match send() {
         Flush::Sent { .. } => "Sent. Thank you.".into(),
-        Flush::Nothing if sunrise_telemetry::endpoint().is_none() => {
+        Flush::Nothing if sunrise_launcher_telemetry::endpoint().is_none() => {
             "Kept; sending is turned off here (SUNRISE_TELEMETRY_URL=off).".into()
         }
         _ => "Kept; it will be sent the next time the launcher starts.".into(),
@@ -314,7 +314,7 @@ pub fn label(kind: Kind) -> &'static str {
 
 /// Sends what is waiting, if there is a server and the player allows it.
 pub fn send() -> Flush {
-    match sunrise_telemetry::endpoint() {
+    match sunrise_launcher_telemetry::endpoint() {
         Some(url) => upload::flush(&home(), &url),
         None => Flush::Nothing,
     }
@@ -335,7 +335,7 @@ pub fn status_json() -> serde_json::Value {
         "choices": consent.choices,
         "install_id": consent.install_id,
         "waiting": outbox::pending(&home()).len(),
-        "server": sunrise_telemetry::endpoint(),
+        "server": sunrise_launcher_telemetry::endpoint(),
         "ping": PING,
     })
 }

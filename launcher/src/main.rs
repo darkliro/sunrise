@@ -197,9 +197,9 @@ struct Crash {
 
 /// The opening: the wordmark holds at least `OPENING_HOLD` (until the release
 /// list is in, at most `OPENING_MAX`), then the launcher appears over `OPENING_REVEAL`.
-const OPENING_HOLD: Duration = sunrise_theme::OPENING_HOLD;
-const OPENING_MAX: Duration = sunrise_theme::OPENING_MAX;
-const OPENING_REVEAL: Duration = sunrise_theme::OPENING_REVEAL;
+const OPENING_HOLD: Duration = sunrise_launcher_theme::OPENING_HOLD;
+const OPENING_MAX: Duration = sunrise_launcher_theme::OPENING_MAX;
+const OPENING_REVEAL: Duration = sunrise_launcher_theme::OPENING_REVEAL;
 
 /// The phase of the opening at one moment: how far the reveal has gone, 0 to 1.
 struct Opening {
@@ -210,7 +210,7 @@ struct Opening {
 }
 
 fn ease_out_cubic(x: f32) -> f32 {
-    sunrise_theme::ease_out_cubic(x)
+    sunrise_launcher_theme::ease_out_cubic(x)
 }
 
 enum Load<T> {
@@ -358,8 +358,8 @@ struct Launcher {
     rail: frame::Rail,
     /// The instance sheet's open section (`glass_sheet.rs`).
     sheet_tab: glass_sheet::SheetTab,
-    /// The glass look's colours for the player's accent (`sunrise_theme::glass`).
-    look: sunrise_theme::glass::Glass,
+    /// The glass look's colours for the player's accent (`sunrise_launcher_theme::glass`).
+    look: sunrise_launcher_theme::glass::Glass,
     /// Where the mouse went down to close a menu by pressing outside it, so that the
     /// same press, ending on the menu's own button, doesn't open it again.
     menu_closed_at: Option<Point<Pixels>>,

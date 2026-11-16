@@ -49,6 +49,9 @@ DAILY_ROWS_LEGS = {".": DAILY_ROWS, "launcher": "daily-rows-launcher"}
 PREPARE = {
     "sunrise-mod-package": ["cargo", "build", "--locked", "--profile", "test", "-p", "sunrise-mod-package",
                             "--features", "runtime-process", "--example", "holder_actor"],
+    # The launcher's copy, built from launcher/ like its daily rows.
+    "sunrise-launcher-smod": ["cargo", "build", "--locked", "--profile", "test", "-p", "sunrise-launcher-smod",
+                              "--example", "holder_actor"],
 }
 # A package too big for one test process's memory runs as several legs, `PACKAGE#NofM` (tools/ci/ignored_tests.py
 # gives each test to exactly one leg). sunrise-client's single process was killed (signal 9) on three main runs.

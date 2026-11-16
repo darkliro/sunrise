@@ -5,7 +5,7 @@ use super::*;
 use crate::glass_ui::{self as ui, white};
 use gpui::deferred;
 use std::time::Instant;
-use sunrise_theme::glass::{fill, ink, radius};
+use sunrise_launcher_theme::glass::{fill, ink, radius};
 
 /// Play, the version and the big icons are this tall (`h-14`).
 const TALL: f32 = 56.;
@@ -245,7 +245,7 @@ impl Launcher {
             &self.rooms,
             "home-title",
             &instance.name,
-            sunrise_theme::glass::DISPLAY_FONT,
+            sunrise_launcher_theme::glass::DISPLAY_FONT,
             44.,
             FontWeight::SEMIBOLD,
         );
@@ -274,7 +274,7 @@ impl Launcher {
                     .relative()
                     .min_w_0()
                     .truncate()
-                    .font_family(sunrise_theme::glass::DISPLAY_FONT)
+                    .font_family(sunrise_launcher_theme::glass::DISPLAY_FONT)
                     .font_weight(FontWeight::SEMIBOLD)
                     .text_size(px(44.))
                     .line_height(px(48.))
@@ -539,7 +539,7 @@ impl Launcher {
                 .pl(px(20.))
                 .pr(px(52.))
                 .whitespace_nowrap()
-                .font_family(sunrise_theme::glass::FONT)
+                .font_family(sunrise_launcher_theme::glass::FONT)
                 .text_size(px(18.))
                 .font_weight(FontWeight::SEMIBOLD)
                 // The glyph leans into the press while the pointer is on Play.
@@ -573,7 +573,7 @@ impl Launcher {
                         .pr(px(48.))
                         .whitespace_nowrap()
                         .text_color(on_accent)
-                        .font_family(sunrise_theme::glass::FONT)
+                        .font_family(sunrise_launcher_theme::glass::FONT)
                         .text_size(px(16.))
                         .font_weight(FontWeight::SEMIBOLD)
                         .child(match progress {
@@ -684,10 +684,10 @@ impl Launcher {
                 // ink, lighter under dark ink), so the label and the menu dots on that end
                 // keep their contrast across the whole button.
                 let (accent_hex, ink) = (self.look.accent, self.look.on_accent);
-                let far = if sunrise_theme::contrast(ink, 0x000000)
-                    > sunrise_theme::contrast(ink, 0xffffff)
+                let far = if sunrise_launcher_theme::contrast(ink, 0x000000)
+                    > sunrise_launcher_theme::contrast(ink, 0xffffff)
                 {
-                    sunrise_theme::glass::mix_oklab(accent_hex, 0x000000, 0.75)
+                    sunrise_launcher_theme::glass::mix_oklab(accent_hex, 0x000000, 0.75)
                 } else {
                     ui::accent2()
                 };
@@ -1064,7 +1064,7 @@ impl Launcher {
             })
             .relative()
             .child(ui::back_edge(radius::LARGE, 0., true))
-            .font_family(sunrise_theme::glass::FONT)
+            .font_family(sunrise_launcher_theme::glass::FONT)
             .text_size(px(14.))
             .text_color(white(ink::FULL))
             .cursor_text()
@@ -1104,7 +1104,7 @@ impl Launcher {
                 cx.notify();
             }));
         let field = line_edit::mouse(field, cx, |this| &mut this.friend_code);
-        let valid = sunrise_friends::invite::parse(self.friend_code.text()).is_some();
+        let valid = sunrise_launcher_friends::invite::parse(self.friend_code.text()).is_some();
         let can = valid && (tag.is_empty() || self.can_start(tag));
         let join = ui::quiet("join-friend", join_label, 40., &t);
         let join = if can {
@@ -1166,7 +1166,7 @@ fn hero_button(id: &'static str, icon: &'static str, label: SharedString) -> Sta
             .border_1()
             .border_color(white(ui::edge::REST))
             .cursor_pointer()
-            .font_family(sunrise_theme::glass::FONT)
+            .font_family(sunrise_launcher_theme::glass::FONT)
             .text_size(px(14.))
             .line_height(px(20.))
             .font_weight(FontWeight::MEDIUM)

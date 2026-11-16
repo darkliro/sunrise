@@ -140,7 +140,7 @@ impl Launcher {
             card = card.child(self.storage_confirmation(asked, cx));
         }
         let summary = card;
-        let mut card = crate::glass::plate(sunrise_theme::glass::radius::PANEL)
+        let mut card = crate::glass::plate(sunrise_launcher_theme::glass::radius::PANEL)
             .flex()
             .flex_col()
             .p(px(8.));
@@ -194,7 +194,7 @@ impl Launcher {
             ));
         }
         let breakdown = card;
-        let mut card = crate::glass::plate(sunrise_theme::glass::radius::PANEL).p(px(8.));
+        let mut card = crate::glass::plate(sunrise_launcher_theme::glass::radius::PANEL).p(px(8.));
         if self.settings.native_mods_allowed_at.is_some() {
             // Turn off asks first: it switches mods off in every instance, and each comes back
             // only from its own instance. Counting and switching off read every instance's

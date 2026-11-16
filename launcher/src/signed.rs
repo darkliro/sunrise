@@ -1,11 +1,9 @@
 //! Signed downloads (docs/security.md): a game or launcher archive is installed only when its
 //! SHA-256 matches the release's SHA256SUMS and that list is signed by one of the keys built in
-//! from crates/sunrise-release-sign/release-keys.txt. A release from before signing installs only
-//! with the SHA-256 pinned for it in legacy-releases.txt (a rollback). Anything else is refused
-//! with a message saying why.
+//! from crates/release-verify/keys/. Anything else is refused with a message saying why.
 
 use crate::backend::REPO;
-use sunrise_release_sign::{Channel, PublicKey, SIGNATURE, SIGNATURE_V2, SUMS};
+use sunrise_launcher_release_verify::{Channel, PublicKey, SIGNATURE, SIGNATURE_V2, SUMS};
 
 /// Where a release's attached file downloads from (GitHub's fixed address for it).
 pub fn asset_url(tag: &str, name: &str) -> String {
@@ -28,33 +26,35 @@ pub fn asset_url(tag: &str, name: &str) -> String {
 }
 
 /// The signed SHA-256 of `asset` in release `tag`, fetching its SHA256SUMS and SHA256SUMS.sig
-/// with `fetch` (None: the release has no such file), or why the download must be refused. A
-/// release from before signing gets its pinned SHA-256, whatever files it carries now.
+/// with `fetch` (None: the release has no such file), or why the download must be refused.
 pub fn digest(
     tag: &str,
     asset: &str,
     keys: &[PublicKey],
     fetch: impl Fn(&str) -> Result<Option<Vec<u8>>, String>,
 ) -> Result<String, String> {
-    if let Some(hex) = sunrise_release_sign::legacy_digest_for(REPO, tag, asset) {
-        return Ok(hex.to_owned());
-    }
     let sums = fetch(&asset_url(tag, SUMS))?;
     let signature = fetch(&asset_url(tag, SIGNATURE))?
         .map(|bytes| String::from_utf8_lossy(&bytes).into_owned());
-    sunrise_release_sign::signed_digest(tag, asset, sums.as_deref(), signature.as_deref(), keys)
+    sunrise_launcher_release_verify::signed_digest(
+        tag,
+        asset,
+        sums.as_deref(),
+        signature.as_deref(),
+        keys,
+    )
 }
 
 /// The version the title of the build published under `tag` names, on `tag`'s channel only
 /// ([`build_digest`]): a snapshot's title under a Nightly's tag is None, and the reverse.
 pub fn title_version(tag: &str, title: &str) -> Option<String> {
-    sunrise_release_sign::build_title_version(Channel::of(tag)?, title)
+    sunrise_launcher_release_verify::build_title_version(Channel::of(tag)?, title)
 }
 
 /// The signed SHA-256 of `asset` in the Nightly or snapshot published under `tag` (`nightly`, a
 /// dated `nightly-<date>`, or `snapshot-<date>-<commit>`) that installs as `version`
 /// (`<channel>-<date>-<commit>`, parsed strictly from its title by
-/// `sunrise_release_sign::build_title_version`): its SHA256SUMS.v2.sig must sign the checksums for
+/// `sunrise_launcher_release_verify::build_title_version`): its SHA256SUMS.v2.sig must sign the checksums for
 /// exactly that version, so an older Nightly can't be served as a newer one, nor a snapshot as a
 /// Nightly. The channel's SHA256SUMS.sig is for launchers from before and is not read.
 ///
@@ -72,7 +72,7 @@ pub fn build_digest(
     let sums = fetch(&asset_url(tag, SUMS))?;
     let signature = fetch(&asset_url(tag, SIGNATURE_V2))?
         .map(|bytes| String::from_utf8_lossy(&bytes).into_owned());
-    sunrise_release_sign::build_digest(
+    sunrise_launcher_release_verify::build_digest(
         channel,
         version,
         asset,
@@ -85,7 +85,7 @@ pub fn build_digest(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sunrise_release_sign::{sha256_hex, sums_file, SigningKey};
+    use sunrise_launcher_release_verify::{sha256_hex, sums_file, SigningKey};
 
     #[test]
     fn metadata_cannot_escape_the_fork_download_path() {
@@ -98,33 +98,15 @@ mod tests {
         // With no key in release-keys.txt every release after the pinned ones would be refused:
         // this fails until the release environment's public key is listed (docs/security.md).
         assert!(
-            !sunrise_release_sign::trusted_keys().is_empty(),
-            "crates/sunrise-release-sign/release-keys.txt lists no key"
+            !sunrise_launcher_release_verify::trusted_keys().is_empty(),
+            "crates/release-verify/keys/sunrise-org-sunrise.txt lists no key"
         );
     }
 
     #[test]
-    fn an_upstream_legacy_archive_offered_under_a_fork_tag_is_refused() {
+    fn an_archive_without_a_signature_is_refused() {
         let tampered =
             |_: &str| -> Result<Option<Vec<u8>>, String> { Ok(Some(b"anything".to_vec())) };
-        assert!(sunrise_release_sign::legacy_digest_for(
-            "horizon-rust/horizon",
-            "v2026.10.12",
-            "sunrise-linux-x86_64.tar.gz"
-        )
-        .is_some());
-        assert!(sunrise_release_sign::legacy_digest_for(
-            "sunrise-org/sunrise",
-            "v2026.10.12",
-            "sunrise-linux-x86_64.tar.gz"
-        )
-        .is_none());
-        assert!(sunrise_release_sign::legacy_digest_for(
-            "unknown/sunrise",
-            "v2026.10.12",
-            "sunrise-linux-x86_64.tar.gz"
-        )
-        .is_none());
         assert!(digest("v2026.10.12", "sunrise-linux-x86_64.tar.gz", &[], tampered).is_err());
     }
 
@@ -193,7 +175,7 @@ mod tests {
                 ))
             }
         };
-        let nightly = serving(sunrise_release_sign::NIGHTLY, VERSION);
+        let nightly = serving(sunrise_launcher_release_verify::NIGHTLY, VERSION);
         assert_eq!(
             build_digest("nightly", VERSION, "sunrise.zip", &keys, &nightly),
             Ok(sha256_hex(b"game"))
@@ -229,7 +211,7 @@ mod tests {
         // A snapshot installs with its own version's signature; it never passes for a Nightly, nor a
         // Nightly for it, nor a snapshot for a release.
         const SNAPSHOT: &str = "snapshot-2026-10-28-0c02067";
-        let snapshot = serving(sunrise_release_sign::SNAPSHOT, SNAPSHOT);
+        let snapshot = serving(sunrise_launcher_release_verify::SNAPSHOT, SNAPSHOT);
         assert_eq!(
             build_digest(SNAPSHOT, SNAPSHOT, "sunrise.zip", &keys, &snapshot),
             Ok(sha256_hex(b"game"))

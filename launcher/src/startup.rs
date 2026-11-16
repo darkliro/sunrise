@@ -34,7 +34,7 @@ pub(super) fn run() {
 }
 
 fn run_launcher() {
-    sunrise_mod_package::holder::retain_capability();
+    sunrise_launcher_smod::holder::retain_capability();
     native_mods::install_host();
     if let Some(code) = native_mods::internals_rustc_wrapper() {
         std::process::exit(code);
@@ -96,17 +96,17 @@ fn run_launcher() {
         .run(move |cx: &mut App| {
             cx.text_system()
                 .add_fonts(vec![
-                    Cow::Borrowed(sunrise_theme::fonts::GEIST_MONO),
-                    Cow::Borrowed(sunrise_theme::fonts::BRICOLAGE_REGULAR),
-                    Cow::Borrowed(sunrise_theme::fonts::BRICOLAGE_MEDIUM),
-                    Cow::Borrowed(sunrise_theme::fonts::BRICOLAGE_SEMIBOLD),
-                    Cow::Borrowed(sunrise_theme::fonts::BRICOLAGE_BOLD),
-                    Cow::Borrowed(sunrise_theme::fonts::BRICOLAGE_DISPLAY_BOLD),
-                    Cow::Borrowed(sunrise_theme::fonts::BRICOLAGE_DISPLAY_SEMIBOLD),
-                    Cow::Borrowed(sunrise_theme::fonts::BRICOLAGE_HEADING_SEMIBOLD),
-                    Cow::Borrowed(sunrise_theme::fonts::GEIST_REGULAR),
-                    Cow::Borrowed(sunrise_theme::fonts::GEIST_MEDIUM),
-                    Cow::Borrowed(sunrise_theme::fonts::GEIST_SEMIBOLD),
+                    Cow::Borrowed(sunrise_launcher_theme::fonts::GEIST_MONO),
+                    Cow::Borrowed(sunrise_launcher_theme::fonts::BRICOLAGE_REGULAR),
+                    Cow::Borrowed(sunrise_launcher_theme::fonts::BRICOLAGE_MEDIUM),
+                    Cow::Borrowed(sunrise_launcher_theme::fonts::BRICOLAGE_SEMIBOLD),
+                    Cow::Borrowed(sunrise_launcher_theme::fonts::BRICOLAGE_BOLD),
+                    Cow::Borrowed(sunrise_launcher_theme::fonts::BRICOLAGE_DISPLAY_BOLD),
+                    Cow::Borrowed(sunrise_launcher_theme::fonts::BRICOLAGE_DISPLAY_SEMIBOLD),
+                    Cow::Borrowed(sunrise_launcher_theme::fonts::BRICOLAGE_HEADING_SEMIBOLD),
+                    Cow::Borrowed(sunrise_launcher_theme::fonts::GEIST_REGULAR),
+                    Cow::Borrowed(sunrise_launcher_theme::fonts::GEIST_MEDIUM),
+                    Cow::Borrowed(sunrise_launcher_theme::fonts::GEIST_SEMIBOLD),
                 ])
                 .expect("bundled fonts");
             cx.bind_keys(key_bindings());

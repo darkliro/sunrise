@@ -1,7 +1,7 @@
 use super::*;
 use sha2::Digest;
 use std::{cell::Cell, io::Write, path::PathBuf};
-use sunrise_mod_package::manifest::collect_jar_requirements;
+use sunrise_launcher_smod::manifest::collect_jar_requirements;
 
 struct Scratch(PathBuf);
 impl Scratch {
@@ -360,7 +360,7 @@ fn failed_metadata_lookup_names_every_missing_jar_but_not_cache_hits() {
 #[test]
 fn final_launch_combines_only_enabled_content_dev_and_adjacent_native_candidates() {
     use std::process::Command;
-    use sunrise_mod_package::mod_list::{DIR, FILE, NATIVE_DIR};
+    use sunrise_launcher_smod::mod_list::{DIR, FILE, NATIVE_DIR};
     let root = Scratch::new();
     let game = root.0.join("game");
     let bin = root.0.join("bin");

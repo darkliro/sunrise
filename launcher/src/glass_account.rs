@@ -6,7 +6,7 @@
 
 use super::*;
 use crate::glass_ui::{self as ui, white, Tone};
-use sunrise_theme::glass::{ink, radius};
+use sunrise_launcher_theme::glass::{ink, radius};
 
 impl Launcher {
     pub(super) fn glass_account(&mut self, cx: &mut Context<Self>) -> Div {
@@ -66,7 +66,7 @@ impl Launcher {
                 .gap(px(10.))
                 .child(
                     div()
-                        .font_family(sunrise_theme::glass::DISPLAY_FONT)
+                        .font_family(sunrise_launcher_theme::glass::DISPLAY_FONT)
                         .font_weight(FontWeight::SEMIBOLD)
                         // A compact summary: the top bar and the account rows name the
                         // player too, so this is no page headline.
@@ -144,7 +144,7 @@ impl Launcher {
                         .when(ui::light(), |d| d.border_1().border_color(ui::white(0.15)))
                         .cursor_pointer()
                         .hover(|s| s.opacity(0.9))
-                        .font_family(sunrise_theme::glass::FONT)
+                        .font_family(sunrise_launcher_theme::glass::FONT)
                         .text_size(px(15.))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(gpui::rgb(0x100a1f))
@@ -176,7 +176,7 @@ impl Launcher {
             .child(
                 div()
                     .mt(px(20.))
-                    .font_family(sunrise_theme::glass::DISPLAY_FONT)
+                    .font_family(sunrise_launcher_theme::glass::DISPLAY_FONT)
                     .font_weight(FontWeight::SEMIBOLD)
                     .text_size(px(22.))
                     .line_height(px(27.5))

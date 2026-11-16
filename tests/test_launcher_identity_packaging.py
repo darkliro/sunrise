@@ -31,8 +31,8 @@ class PackagingIdentity(unittest.TestCase):
             source = temporary / 'metadata.rs'
             source.write_text(program)
             outputs = []
-            addresses = temporary / 'libsunrise_addresses.rlib'
-            subprocess.run(['rustc', '--edition=2024', '--crate-name=sunrise_addresses', '--crate-type=rlib', str(ROOT / 'crates/sunrise-addresses/src/lib.rs'), '-o', str(addresses)], check=True)
+            addresses = temporary / 'libsunrise_launcher_addresses.rlib'
+            subprocess.run(['rustc', '--edition=2024', '--crate-name=sunrise_launcher_addresses', '--crate-type=rlib', str(ROOT / 'launcher/crates/addresses/src/lib.rs'), '-o', str(addresses)], check=True)
             build_script = temporary / 'build-script'
             subprocess.run(['rustc', '--edition=2021', str(ROOT / 'launcher/build.rs'), '-o', str(build_script)], check=True)
             for repository in (STAGE.UPSTREAM, STAGE.FORK):
@@ -45,7 +45,7 @@ class PackagingIdentity(unittest.TestCase):
                     if line.startswith('cargo:rustc-cfg='):
                         flags += ['--cfg', line.removeprefix('cargo:rustc-cfg=')]
                 binary = temporary / 'metadata'
-                subprocess.run(['rustc', '--edition=2021', str(source), '-o', str(binary), '--extern', f'sunrise_addresses={addresses}', *flags], check=True)
+                subprocess.run(['rustc', '--edition=2021', str(source), '-o', str(binary), '--extern', f'sunrise_launcher_addresses={addresses}', *flags], check=True)
                 output = subprocess.check_output([str(binary)], text=True)
                 outputs.append(dict(line.split('\t', 1) for line in output.splitlines()))
             upstream, fork = outputs

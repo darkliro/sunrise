@@ -7,7 +7,7 @@
 use base64::Engine;
 use std::fs;
 use std::path::Path;
-use sunrise_platform::world::nbt::{self, Compound, JavaString, Limits, NamedTag, Tag};
+use sunrise_launcher_nbt::{self as nbt, Compound, JavaString, Limits, NamedTag, Tag};
 
 const FILE: &str = "servers.dat";
 #[derive(Clone, Debug, PartialEq)]

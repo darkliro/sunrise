@@ -7,7 +7,7 @@ use std::{
     fmt, fs, io,
     path::{Path, PathBuf},
 };
-use sunrise_mod_package::manifest::{JarRef, JarRequirement, MissingJar};
+use sunrise_launcher_smod::manifest::{JarRef, JarRequirement, MissingJar};
 use sunrise_port_pack::{fetch, modrinth};
 
 /// Download consent for this mod set, never a permission to execute Java code.
@@ -113,9 +113,34 @@ pub fn prepare(
         home,
         jars,
         permission,
-        modrinth::jar_urls,
-        fetch::download_jar,
+        |jars| {
+            modrinth::jar_urls(
+                &jars
+                    .iter()
+                    .map(|jar| to_game(jar))
+                    .collect::<Vec<_>>()
+                    .iter()
+                    .collect::<Vec<_>>(),
+            )
+        },
+        |url, jar, dest| fetch::download_jar(url, &to_game(jar), dest),
     )
+}
+
+/// A jar as the game's crates spell it, for sunrise-port-pack until it runs as its own process.
+fn to_game(jar: &JarRef) -> sunrise_mod_package::manifest::JarRef {
+    sunrise_mod_package::manifest::JarRef::new(
+        jar.id().into(),
+        jar.version().into(),
+        jar.sha512().into(),
+    )
+    .expect("both copies check a jar alike")
+}
+
+/// A jar of a game-crate manifest (the native build's) in the launcher's own types.
+pub fn from_game(jar: &sunrise_mod_package::manifest::JarRef) -> JarRef {
+    JarRef::new(jar.id().into(), jar.version().into(), jar.sha512().into())
+        .expect("both copies check a jar alike")
 }
 
 fn prepare_with(

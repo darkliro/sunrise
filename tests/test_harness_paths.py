@@ -34,13 +34,15 @@ class HarnessPaths(unittest.TestCase):
 
     @unittest.skipUnless(shutil.which("cargo"), "needs cargo for the workspace's targets")
     def test_every_cargo_target_a_tool_builds_is_in_its_package(self):
-        metadata = json.loads(subprocess.check_output(
-            ["cargo", "metadata", "--no-deps", "--format-version", "1"], cwd=ROOT, text=True))
         owners = {}
-        for package in metadata["packages"]:
-            for target in package["targets"]:
-                for kind in target["kind"]:
-                    owners.setdefault((kind, target["name"]), set()).add(package["name"])
+        # The launcher is its own workspace; tools build its packages from launcher/ (ignored_shards.PREPARE).
+        for workspace in (ROOT, ROOT / "launcher"):
+            metadata = json.loads(subprocess.check_output(
+                ["cargo", "metadata", "--no-deps", "--format-version", "1"], cwd=workspace, text=True))
+            for package in metadata["packages"]:
+                for target in package["targets"]:
+                    for kind in target["kind"]:
+                        owners.setdefault((kind, target["name"]), set()).add(package["name"])
         kinds = {"--bin": "bin", "--example": "example", "--test": "test"}
         tools = sorted(path for path in (ROOT / "tools").rglob("*.py") if "vendor" not in path.parts)
         for tool in tools:

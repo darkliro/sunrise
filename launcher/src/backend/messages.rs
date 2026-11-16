@@ -35,7 +35,7 @@ pub enum Msg {
     /// file (none = offline) and why it plays offline, if it does.
     Session(Result<Option<crate::account::GameSession>, crate::account::NoOwner>),
     JarConsent {
-        jars: Vec<sunrise_mod_package::manifest::JarRef>,
+        jars: Vec<sunrise_launcher_smod::manifest::JarRef>,
         reply: std::sync::mpsc::Sender<bool>,
     },
     JarClient {

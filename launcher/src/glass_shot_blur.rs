@@ -9,7 +9,7 @@ use crate::picture_cache::Look;
 use gpui::RenderImage;
 use std::path::Path;
 use std::sync::Arc;
-use sunrise_theme::glass::{fill, radius};
+use sunrise_launcher_theme::glass::{fill, radius};
 
 /// The blurred copy is made this wide (and 16:9 tall), its blur this many of its pixels: about
 /// the mockup's 40 px over its tiles (163 to 335 px wide).
