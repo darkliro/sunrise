@@ -14,8 +14,8 @@ can live in its own repository.
 | Where | every Nightly and snapshot release, listed in `SHA256SUMS` and so covered by its signatures |
 | Written by | `tools/release_file.py write`, in `nightly-build.yml`'s `pick` job, from the built commit |
 
-The SDK releases (`sdk-<sha>`) carry the same facts in `sdk.json` (`build.commit`, `toolchain.rust`); a
-`sunrise-release.json` beside them comes with the native build tool those releases will ship.
+SDK releases (`sdk-<sha>`) have no `sunrise-release.json`: their signed `sdk.json` covers them, with the same facts
+(`build.commit`, `toolchain.rust`) and the assets. A reader of an SDK release reads `sdk.json`.
 
 ## Reference
 
