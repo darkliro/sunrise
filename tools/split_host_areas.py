@@ -25,7 +25,8 @@ SOURCES = {"levels": "level_", "entities": "entity_", "players": "player_"}
 GROUPS = {
     "level_blocks": ("Reading and writing the block at a position.", """
         level_block_state level_block level_block_property level_block_transform level_block_break_speed
-        level_set_block level_remove_block level_destroy_block level_block_drops level_bone_meal"""),
+        level_set_block level_update_from_neighbour_shapes level_place_block level_remove_block
+        level_destroy_block level_block_drops level_bone_meal"""),
     "level_block_updates": ("Telling neighbours, clients and capability caches that a block changed.", """
         level_send_block_updated level_set_break_progress level_block_event level_update_neighbors
         level_neighbor_changed level_capability_generation level_invalidate_capabilities"""),
@@ -57,7 +58,7 @@ GROUPS = {
     "level_worldgen": ("Biomes, structures and the seed the generator uses.", """
         level_biome_at level_client_biome level_find_closest_biome level_find_nearest_structure
         level_biome_spawners level_biome_effects level_biome_in_tag level_biome_properties level_set_biome
-        level_seed"""),
+        level_place_feature level_seed"""),
     "level_datapacks": ("Data-driven lookups: datapack registry entries, recipe matching and loot tables.", """
         level_datapack_entries level_datapack_handle level_datapack_read level_recipe_for level_roll_loot"""),
     "level_rules": ("Game rules, difficulty and the features a level enables.", """
@@ -73,7 +74,8 @@ GROUPS = {
         level_spawn_limits level_spawn_flags level_can_spawn_entities_in_chunk level_set_spawn_limits
         level_set_spawn_flags level_spawn_mob"""),
     "level_effects": ("Sounds, particles, level and game events, and explosions.", """
-        level_play_sound level_send_particles level_level_event level_global_level_event level_game_event
+        level_play_sound level_send_particles level_level_event level_block_break_effect level_global_level_event
+        level_game_event
         level_explode level_explosion_resistance level_explosion_resistances level_explosion_destroy_blocks"""),
     "level_world_border": ("The level's world border.", """
         level_world_border level_set_world_border_center level_set_world_border_size
@@ -120,7 +122,7 @@ GROUPS = {
         entity_is_silent entity_glowing entity_no_gravity entity_is_invisible entity_set_silent
         entity_set_glowing entity_set_no_gravity entity_set_invisible"""),
     "entity_stance": ("How an entity holds itself: spectating, crouching, sprinting, its pose.", """
-        entity_spectator entity_is_shift_key_down entity_is_crouching entity_is_sprinting entity_pose"""),
+        entity_spectator entity_is_shift_key_down entity_is_crouching entity_is_sprinting entity_set_sprinting entity_pose"""),
     "entity_air_fluids": ("The fluids an entity touches, and its air.", """
         entity_fluid_heights entity_eye_fluid entity_is_in_water entity_is_in_lava entity_air_supply
         entity_max_air_supply entity_set_air_supply"""),
@@ -144,7 +146,7 @@ GROUPS = {
         player_respawn"""),
     "player_interaction": ("What a player does to blocks and entities: range, permission, breaking and placing.", """
         player_attack_strength_scale player_may_use_item_at player_can_harm player_within_entity_reach
-        player_destroy_block player_ack_block_changes player_show_block player_place_block"""),
+        player_destroy_block player_has_correct_tool_for_drops player_ack_block_changes player_show_block player_place_block"""),
     "player_inventory": ("A player's inventory, ender chest and selected slot.", """
         player_selected_slot player_inventory player_inventory_slots player_ender_chest
         player_set_selected_slot player_drop_stack player_set_inventory_slot player_set_ender_chest_slot
