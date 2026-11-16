@@ -109,7 +109,7 @@ console.log(JSON.stringify(eval(expression)));
         commands = re.findall(r"check_glibc.py ([^\n]+)", text.replace("\\\n", " "))
         checked = [{Path(argument).name for argument in shlex.split(command)} for command in commands]
         self.assertEqual(checked, [
-            {"sunrise-client", "sunrise-ctl", "sunrise-prepare", "sunrise-server"},
+            {"sunrise-client", "sunrise-ctl", "sunrise-prepare", "sunrise-server", "sunrise-port-pack"},
             {"sunrise-engine", "sunrise-server", "sunrise-prepare"},
         ])
         tools = [step for step in text.split("\n      - ") if "path: .workflow-tools" in step]

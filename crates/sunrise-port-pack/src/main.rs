@@ -36,105 +36,212 @@
 //!   (`docs/datapack-upgrade.md`), into the folder `<out>`, or into
 //!   `<world>/datapacks/<pack name>-26.3`.
 //!
+//! - `port-work <work> [--from <folder>] [--resources <prepared>]`: the port step alone, on an imported work folder.
+//! - `status <work>`: what the work folder holds, as the launcher shows it.
+//! - `--json` (not `upgrade-datapack` or `events`): JSON lines on stdout, the reply last (`docs/api/port-pack.md`).
+//!
 //! The work folder belongs to the user: jars and carried-over files stay
 //! there and are never uploaded or committed.
+use serde_json::{Value, json};
 use std::{
     path::{Path, PathBuf},
     process::ExitCode,
 };
-use sunrise_port_pack::{events, fetch, inventory::Record, pipeline, upgrade};
+use sunrise_port_pack::{events, fetch, inventory::Record, pipeline, status, upgrade};
 
-const USAGE: &str = "usage: sunrise-port-pack import <pack> <work> | inventory <work> [--offline] | fetch <work> [--from <folder>] [<mod id>...] | carry <work> [--resources <prepared>] [<mod id>...] | report <work> | check <jar> <out> | port <pack> <work> [--from <folder>] [--resources <prepared>] | upgrade-datapack <pack> (<out> | --world <world>) | events <jar or folder> [--hooks <hook-counterparts.json>]";
+const USAGE: &str = "usage: sunrise-port-pack import <pack> <work> | inventory <work> [--offline] | fetch <work> [--from <folder>] [<mod id>...] | carry <work> [--resources <prepared>] [<mod id>...] | report <work> | check <jar> <out> | port <pack> <work> [--from <folder>] [--resources <prepared>] | port-work <work> [--from <folder>] [--resources <prepared>] | status <work> | upgrade-datapack <pack> (<out> | --world <world>) | events <jar or folder> [--hooks <hook-counterparts.json>]; --json for JSON lines (not upgrade-datapack or events); --version; --help";
+
+/// This release's version: release builds set `SUNRISE_VERSION` from the tag (docs/versioning.md).
+const VERSION: &str = match option_env!("SUNRISE_VERSION") {
+    Some(version) if !version.is_empty() => version,
+    _ => env!("CARGO_PKG_VERSION"),
+};
 
 fn main() -> ExitCode {
     let mut args: Vec<String> = std::env::args().skip(1).collect();
-    let result = (|| {
-        let from = option(&mut args, "--from")?;
-        let resources = option(&mut args, "--resources")?;
-        let world = option(&mut args, "--world")?;
-        let hooks = option(&mut args, "--hooks")?;
-        let offline = take_flag(&mut args, "--offline");
-        let path = |i: usize| args.get(i).map(Path::new).ok_or(USAGE.to_owned());
-        let rest = || args.get(2..).unwrap_or_default().to_vec();
-        let log = &|line: String| println!("{line}");
-        match args.first().map(String::as_str) {
-            Some("import") => pipeline::import(path(1)?, path(2)?, log).map(drop),
-            Some("inventory") => pipeline::inventory(path(1)?, offline, log).map(drop),
-            Some("fetch") => {
-                let work = path(1)?;
-                let records: Vec<Record> = pipeline::read_json(&work.join("inventory.json"))?;
-                let only = rest();
-                let want = |r: &Record| {
-                    if only.is_empty() {
-                        pipeline::portable(r)
-                    } else {
-                        only.contains(&r.key)
-                    }
-                };
-                fetch::fetch(work, &records, from.as_deref(), &want, log).map(drop)
-            }
-            Some("carry") => {
-                pipeline::carry(path(1)?, resources.as_deref(), &rest(), log).map(drop)
-            }
-            Some("report") => {
-                let work = path(1)?;
-                pipeline::report(work, log)?;
-                println!("{}", work.join("coverage.md").display());
-                Ok(())
-            }
-            Some("check") => {
-                let c = sunrise_port_pack::check::check(path(1)?, path(2)?)?;
-                println!("{}: {}. {}", c.mod_id, c.verdict.label(), c.summary);
-                for p in &c.ports {
-                    println!("  ports: {p}");
-                }
-                for s in &c.skipped {
-                    println!("  skipped: {s}");
-                }
-                Ok(())
-            }
-            Some("port") => {
-                let work = path(2)?;
-                pipeline::import(path(1)?, work, log)?;
-                pipeline::inventory(work, offline, log)?;
-                pipeline::port(work, resources.as_deref(), from.as_deref(), log)?;
-                println!("{}", work.join("coverage.md").display());
-                Ok(())
-            }
-            Some("upgrade-datapack") => {
-                let pack = path(1)?;
-                let out = match &world {
-                    Some(world) => {
-                        let name = pack.file_stem().unwrap_or_default().to_string_lossy();
-                        world.join("datapacks").join(format!("{name}-26.3"))
-                    }
-                    None => path(2)?.to_path_buf(),
-                };
-                let report = upgrade::upgrade_into(pack, &out)?;
-                for line in report.lines() {
-                    println!("{line}");
-                }
-                println!("{}", out.display());
-                Ok(())
-            }
-            Some("events") => {
-                let catalog = match &hooks {
-                    Some(file) => std::fs::read_to_string(file)
-                        .map_err(|e| format!("{}: {e}", file.display()))?,
-                    None => events::CATALOG.to_owned(),
-                };
-                print!("{}", events::report(path(1)?, &catalog)?);
-                Ok(())
-            }
-            _ => Err(USAGE.to_owned()),
+    match args.as_slice() {
+        [flag] if flag == "--version" || flag == "-V" => {
+            println!("sunrise-port-pack {VERSION}");
+            return ExitCode::SUCCESS;
         }
-    })();
+        [flag] if flag == "--help" || flag == "-h" => {
+            println!("{USAGE}");
+            return ExitCode::SUCCESS;
+        }
+        _ => {}
+    }
+    let json = take_flag(&mut args, "--json");
+    if json
+        && matches!(
+            args.first().map(String::as_str),
+            Some("upgrade-datapack" | "events")
+        )
+    {
+        eprintln!("error: --json is not for {}\n{USAGE}", args[0]);
+        return ExitCode::from(2);
+    }
+    let say = |line: String| match json {
+        true => println!("{}", json!({ "message": line })),
+        false => println!("{line}"),
+    };
+    let result = run(&mut args, json, &say);
     match result {
-        Ok(()) => ExitCode::SUCCESS,
+        Ok(Some(reply)) if json => {
+            println!("{reply}");
+            ExitCode::SUCCESS
+        }
+        Ok(_) => ExitCode::SUCCESS,
         Err(e) => {
+            if json {
+                println!("{}", json!({ "format": status::FORMAT, "error": e }));
+            }
             eprintln!("error: {e}");
             ExitCode::FAILURE
         }
+    }
+}
+
+/// Runs the command in `args`; with `json`, returns the reply its last line carries.
+fn run(args: &mut Vec<String>, json: bool, say: &dyn Fn(String)) -> Result<Option<Value>, String> {
+    let from = option(args, "--from")?;
+    let resources = option(args, "--resources")?;
+    let world = option(args, "--world")?;
+    let hooks = option(args, "--hooks")?;
+    let offline = take_flag(args, "--offline");
+    let path = |i: usize| args.get(i).map(Path::new).ok_or(USAGE.to_owned());
+    let rest = || args.get(2..).unwrap_or_default().to_vec();
+    let log = &|line: String| say(line);
+    // The plain output's last lines; JSON has the reply instead.
+    let plain = |line: String| {
+        if !json {
+            println!("{line}");
+        }
+    };
+    let state = |work: &Path| -> Result<Option<Value>, String> {
+        match json {
+            true => serde_json::to_value(status::status(work)?)
+                .map(Some)
+                .map_err(|e| e.to_string()),
+            false => Ok(None),
+        }
+    };
+    match args.first().map(String::as_str) {
+        Some("import") => {
+            let work = path(2)?;
+            pipeline::import(path(1)?, work, log)?;
+            state(work)
+        }
+        Some("inventory") => {
+            let work = path(1)?;
+            pipeline::inventory(work, offline, log)?;
+            state(work)
+        }
+        Some("fetch") => {
+            let work = path(1)?;
+            let records: Vec<Record> = pipeline::read_json(&work.join("inventory.json"))?;
+            let only = rest();
+            let want = |r: &Record| {
+                if only.is_empty() {
+                    pipeline::portable(r)
+                } else {
+                    only.contains(&r.key)
+                }
+            };
+            fetch::fetch(work, &records, from.as_deref(), &want, log)?;
+            state(work)
+        }
+        Some("carry") => {
+            let work = path(1)?;
+            pipeline::carry(work, resources.as_deref(), &rest(), log)?;
+            state(work)
+        }
+        Some("report") => {
+            let work = path(1)?;
+            pipeline::report(work, log)?;
+            plain(work.join("coverage.md").display().to_string());
+            state(work)
+        }
+        Some("check") => {
+            let c = sunrise_port_pack::check::check(path(1)?, path(2)?)?;
+            if json {
+                return Ok(Some(json!({ "format": status::FORMAT, "check": c })));
+            }
+            println!("{}: {}. {}", c.mod_id, c.verdict.label(), c.summary);
+            for p in &c.ports {
+                println!("  ports: {p}");
+            }
+            for s in &c.skipped {
+                println!("  skipped: {s}");
+            }
+            Ok(None)
+        }
+        Some("port") => {
+            let work = path(2)?;
+            pipeline::import(path(1)?, work, log)?;
+            pipeline::inventory(work, offline, log)?;
+            pipeline::port(work, resources.as_deref(), from.as_deref(), log)?;
+            plain(work.join("coverage.md").display().to_string());
+            state(work)
+        }
+        Some("port-work") => {
+            let work = path(1)?;
+            pipeline::port(work, resources.as_deref(), from.as_deref(), log)?;
+            plain(work.join("coverage.md").display().to_string());
+            state(work)
+        }
+        Some("status") => {
+            let work = path(1)?;
+            let found = status::status(work)?;
+            match json {
+                true => serde_json::to_value(found)
+                    .map(Some)
+                    .map_err(|e| e.to_string()),
+                false => {
+                    let s = &found.summary;
+                    println!(
+                        "{}: {} files, {} of {} mods carried over ({} partly), {} portable, {} loaded",
+                        pipeline::title(&found.pack),
+                        found.rows.len(),
+                        s.carried,
+                        s.needing,
+                        s.partial,
+                        found.portable,
+                        found.mods.len()
+                    );
+                    for line in &found.left_off {
+                        println!("  left off: {line}");
+                    }
+                    Ok(None)
+                }
+            }
+        }
+        Some("upgrade-datapack") => {
+            let pack = path(1)?;
+            let out = match &world {
+                Some(world) => {
+                    let name = pack.file_stem().unwrap_or_default().to_string_lossy();
+                    world.join("datapacks").join(format!("{name}-26.3"))
+                }
+                None => path(2)?.to_path_buf(),
+            };
+            let report = upgrade::upgrade_into(pack, &out)?;
+            for line in report.lines() {
+                println!("{line}");
+            }
+            println!("{}", out.display());
+            Ok(None)
+        }
+        Some("events") => {
+            let catalog = match &hooks {
+                Some(file) => {
+                    std::fs::read_to_string(file).map_err(|e| format!("{}: {e}", file.display()))?
+                }
+                None => events::CATALOG.to_owned(),
+            };
+            print!("{}", events::report(path(1)?, &catalog)?);
+            Ok(None)
+        }
+        _ => Err(USAGE.to_owned()),
     }
 }
 

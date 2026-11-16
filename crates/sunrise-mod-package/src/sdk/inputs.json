@@ -5,6 +5,7 @@
         "sunrise-ctl",
         "sunrise-prepare",
         "sunrise-server",
+        "sunrise-port-pack",
         "sunrise-wasm-std.wasm"
       ],
       "checkout": [
@@ -39,6 +40,7 @@
     "sunrise-ctl": "cargo build PROFILE -p sunrise-client-lib --bin sunrise-ctl",
     "sunrise-prepare": "cargo build PROFILE -p sunrise-prepare",
     "sunrise-server": "cargo build PROFILE -p sunrise-server",
+    "sunrise-port-pack": "cargo build PROFILE -p sunrise-port-pack",
     "sunrise-wasm-std.wasm": "cargo run --locked -p cargo-sunrise-mod -- wasm-std PROGRAM_FOLDER/sunrise-wasm-std.wasm",
     "exporters/manifest.json": "sunrise-prepare compile-exporters --root CHECKOUT, then copy its server, client and manifest.json into CHECKOUT/exporters/",
     "runtime": "the SDK release of the game's exact commit",

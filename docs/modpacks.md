@@ -329,6 +329,8 @@ cargo run -p sunrise-port-pack -- carry ~/.sunrise/ports/pack         # content 
 cargo run -p sunrise-port-pack -- report ~/.sunrise/ports/pack        # coverage.json and coverage.md
 cargo run -p sunrise-port-pack -- events ~/.sunrise/ports/pack/jars   # NeoForge events the mods listen to, and their hooks
 cargo run -p sunrise-port-pack -- port ~/Downloads/pack.zip ~/.sunrise/ports/pack [--from <folder>] [--resources <root>]
+cargo run -p sunrise-port-pack -- port-work ~/.sunrise/ports/pack      # the port step alone, on an imported folder
+cargo run -p sunrise-port-pack -- status ~/.sunrise/ports/pack         # what the folder holds, as the launcher shows it
 ```
 
 ### Data packs in mod jars

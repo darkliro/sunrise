@@ -90,6 +90,7 @@ Deprecations and breaking changes are in bold. The release notes of the game rel
 | Content mods (`registries`: data-driven blocks, items, mob effects, thrown entity types and menu types) | preview | manifest `api = "0.2"` |
 | Native mods (flat Rust projects, [../modding/src/how-to/native-mods.md](../modding/src/how-to/native-mods.md)) | experimental | the pinned revisions |
 | `cargo sunrise-mod` (`new`, `build`, `run`, `check`) | preview | none yet (unversioned) |
+| `sunrise-port-pack --json` ([port-pack.md](port-pack.md)) | experimental | `"format": 1` |
 | Shader API | experimental | 0.1 |
 | Shader API 0.2 (linear light, [hdr-linear-light.md](../design/hdr-linear-light.md)) | experimental, behind a switch: `sunrise-shader` checks it, the game draws it only with `SUNRISE_HDR_FRAME=float` set, and the registry doesn't list it | 0.2 |
 | `sunrise-ctl` commands and MCP tools | preview | none yet (unversioned) |

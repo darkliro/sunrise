@@ -479,7 +479,7 @@ pub fn build(records: &[Record], work: &Path) -> Vec<Row> {
 
 /// What a pack's mods add up to, for the headline above the numbers. It counts the report's own
 /// rows and tiers; resource packs and shader packs are not mods and are left out.
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Default, PartialEq, Eq, Serialize)]
 pub struct Summary {
     /// Mods that need a port: all but the "not needed" ones.
     pub needing: usize,
