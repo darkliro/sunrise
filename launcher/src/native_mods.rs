@@ -1399,9 +1399,9 @@ fn pipeline(
             .iter()
             .map(|bundle| {
                 let jars = bundle.manifest.jar.iter().map(crate::jars::from_game);
-                (bundle.manifest.id.as_str(), jars.collect())
+                Ok((bundle.manifest.id.as_str(), jars.collect::<Result<_, _>>()?))
             })
-            .collect();
+            .collect::<Result<_, String>>()?;
         let jars = sunrise_launcher_smod::manifest::collect_jar_requirements(
             jars.iter().map(|(id, jars)| (*id, jars.as_slice())),
         )
