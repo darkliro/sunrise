@@ -94,6 +94,18 @@ impl fmt::Display for EngineCommandError {
         }
     }
 }
+impl EngineCommandError {
+    /// The error's `kind` in `engine-command --json` (docs/api/engine-command.md): one per variant.
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Self::Configuration(_) => "configuration",
+            Self::Program(_) => "program",
+            Self::Resources(_) => "resources",
+            Self::Io { .. } => "io",
+        }
+    }
+}
+
 impl std::error::Error for EngineCommandError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {

@@ -59,8 +59,25 @@ One JSON object on stdout, with the message for a person:
 | `program` | no game program beside `sunrise-server`, on the `PATH` or at `engine.path` | 1 |
 | `io` | a file couldn't be read, or a path isn't valid Unicode | 1 |
 
+These four are every kind `engine-command` writes: each comes from one case of `EngineCommandError::kind`
+(`crates/sunrise-server-launch`), and there is no catch-all. A path in the reply that isn't valid Unicode, or a
+command with no working folder, is `io`.
+
 A refused command line (anything after `engine-command` but `--json`) exits 2 with a line on stderr and nothing on
 stdout.
+
+### Starting it
+
+The reply is what to run; how `sunrise-server run` starts it is fixed, so a launcher that starts the engine itself
+does the same (`command_with_transfers` in `crates/sunrise-server-launch/src/lib.rs`):
+
+- **stdin, stdout and stderr piped.** The supervisor sends console commands on stdin (`stop` among them, to end
+  the game cleanly) and reads the game's log from stdout and stderr.
+- **Its own process group.** Unix: `process_group(0)` (a new group led by the game). Windows: the creation flags
+  `CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW`. A terminal's Ctrl-C then reaches only the supervisor, which stops
+  the game cleanly through its console (`stop`) instead of the game dying mid-save, and on Windows no console
+  window opens.
+- **The environment** is the inherited one with `env` applied on top, and the working folder is `cwd`.
 
 ### Reading it
 

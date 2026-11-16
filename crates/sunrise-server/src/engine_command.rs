@@ -3,6 +3,7 @@
 use serde_json::{Map, Value, json};
 use std::{
     ffi::OsStr,
+    io::Write,
     path::Path,
     process::{Command, ExitCode},
 };
@@ -14,14 +15,22 @@ pub const FORMAT: u32 = 1;
 /// The exit code when the prepared game files are missing: preparing them is the fix.
 pub const EXIT_RESOURCES: u8 = 3;
 
+/// The exit code for a refused command line: a line on stderr, nothing on stdout.
+pub const EXIT_USAGE: u8 = 2;
+
 /// Runs `engine-command` for the folder `dir`, as this program's own supervisor would see it.
 pub fn command(dir: &Path, args: &[String]) -> ExitCode {
+    ExitCode::from(run(dir, args, &mut std::io::stdout().lock()))
+}
+
+/// [`command`], writing its stdout to `out`: the exit code.
+fn run(dir: &Path, args: &[String], out: &mut impl Write) -> u8 {
     let json = match args {
         [] => false,
         [flag] if flag == "--json" => true,
         _ => {
             eprintln!("sunrise-server: engine-command takes only --json");
-            return ExitCode::from(2);
+            return EXIT_USAGE;
         }
     };
     let described = std::env::current_exe()
@@ -31,14 +40,18 @@ pub fn command(dir: &Path, args: &[String]) -> ExitCode {
         })
         .and_then(|supervisor| sunrise_server_launch::engine(&supervisor, dir));
     let (code, reply) = reply(described);
-    if json {
-        println!("{reply}");
+    let written = if json {
+        writeln!(out, "{reply}")
     } else if let Some(error) = reply["error"]["message"].as_str() {
         eprintln!("sunrise-server: {error}");
+        Ok(())
     } else {
-        print!("{}", human(&reply));
+        write!(out, "{}", human(&reply))
+    };
+    match written {
+        Ok(()) => code,
+        Err(_) => 1,
     }
-    ExitCode::from(code)
 }
 
 /// The exit code and the JSON for a described engine, or for why it couldn't be described.
@@ -54,15 +67,7 @@ fn reply(described: Result<Engine, EngineCommandError>) -> (u8, Value) {
     };
     let engine = match described {
         Ok(engine) => engine,
-        Err(error) => {
-            let kind = match &error {
-                EngineCommandError::Configuration(_) => "configuration",
-                EngineCommandError::Program(_) => "program",
-                EngineCommandError::Resources(_) => "resources",
-                _ => "io",
-            };
-            return failed(kind, error.to_string());
-        }
+        Err(error) => return failed(error.kind(), error.to_string()),
     };
     match describe(&engine) {
         Ok(value) => (0, value),
@@ -206,6 +211,43 @@ mod tests {
             (code, reply["error"]["kind"].as_str()),
             (1, Some("configuration"))
         );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn a_missing_game_program_exits_1_with_the_program_kind() {
+        let root = folder("no-program");
+        let server = root.join("server");
+        std::fs::write(
+            server.join("server.toml"),
+            "[engine]\npath = \"gone/sunrise-engine\"\n",
+        )
+        .unwrap();
+        let supervisor = root.join(format!(
+            "bin/sunrise-server{}",
+            std::env::consts::EXE_SUFFIX
+        ));
+        let (code, reply) = reply(sunrise_server_launch::engine(&supervisor, &server));
+        assert_eq!((code, reply["format"].as_u64()), (1, Some(1)));
+        assert_eq!(reply["error"]["kind"], "program");
+        assert!(
+            reply["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("gone/sunrise-engine")
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn a_refused_command_line_exits_2_and_writes_nothing_to_stdout() {
+        let root = folder("usage");
+        for args in [vec!["--yaml"], vec!["--json", "--json"]] {
+            let args: Vec<String> = args.into_iter().map(String::from).collect();
+            let mut out = Vec::new();
+            assert_eq!(run(&root.join("server"), &args, &mut out), 2, "{args:?}");
+            assert!(out.is_empty(), "{args:?}");
+        }
         std::fs::remove_dir_all(root).unwrap();
     }
 }
