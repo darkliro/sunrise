@@ -551,6 +551,22 @@ mod tests {
         }
     }
 
+    #[test]
+    fn a_signature_from_another_valid_key_or_for_another_tag_is_refused() {
+        let (trusted, _) = SigningKey::generate().unwrap();
+        let (other, _) = SigningKey::generate().unwrap();
+        let keys = parse_keys(&trusted.public_base64()).unwrap();
+        let sums = sums_file(&[("game.tar.gz".into(), "ab".repeat(32))]);
+        let tag = "nightly-2026-11-10-abcdef0";
+        let signed = |key: &SigningKey| {
+            verify(tag, sums.as_bytes(), &key.sign(tag, sums.as_bytes()), &keys).is_ok()
+        };
+        assert!(signed(&trusted));
+        assert!(!signed(&other));
+        let for_the_channel = trusted.sign(tag, sums.as_bytes());
+        assert!(verify("nightly", sums.as_bytes(), &for_the_channel, &keys).is_err());
+    }
+
     /// Runs in both profiles (CI runs it with `--release` too): the variable's key is trusted for an SDK
     /// exactly when `debug_assertions` is on, and never for a game or launcher release.
     #[test]
