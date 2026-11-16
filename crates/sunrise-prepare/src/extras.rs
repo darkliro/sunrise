@@ -3,6 +3,7 @@
 use crate::artifacts::{self, Inputs, Lock};
 use crate::pyjson::{self, Value};
 use crate::{check, exporters, Log};
+use std::fmt;
 use std::path::{Path, PathBuf};
 
 /// The replies' `format`: a new field keeps it, a changed or removed one makes the next.
@@ -10,6 +11,41 @@ pub const FORMAT: i64 = 1;
 
 /// The game's prepared-data cache (`sunrise_core::prepared_files::FILE_NAME`), stale once an extra is added.
 pub const DATA_FILE: &str = "sunrise-data.bin";
+
+/// Why `needs`, `missing-extras` or `extras` couldn't answer: its `kind` in the error reply, one per case.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Error {
+    /// `research-lock.json` is missing or doesn't name a version.
+    Lock(String),
+    /// `extras` was asked to add to resources that aren't prepared.
+    Unprepared(PathBuf),
+    /// A file couldn't be read, linked or removed.
+    Io(String),
+}
+
+impl Error {
+    /// The `kind` in the error reply (docs/api/prepare-extras.md).
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Self::Lock(_) => "lock",
+            Self::Unprepared(_) => "unprepared",
+            Self::Io(_) => "io",
+        }
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Lock(error) | Self::Io(error) => f.write_str(error),
+            Self::Unprepared(resources) => write!(
+                f,
+                "{} is not prepared: sunrise-prepare --prepare",
+                resources.display()
+            ),
+        }
+    }
+}
 
 /// What a preparation of `root` will need beyond the player's Minecraft folder.
 #[derive(Debug, PartialEq, Eq)]
@@ -21,9 +57,10 @@ pub struct Needs {
 }
 
 /// [`Needs`] for `root`. Reusing a sibling's import links it into `root`, as a preparation would.
-pub fn needs(root: &Path, log: Log) -> Result<Needs, String> {
+pub fn needs(root: &Path, log: Log) -> Result<Needs, Error> {
+    Lock::read(root).map_err(Error::Lock)?;
     Ok(Needs {
-        server_jar: !artifacts::reuse_imported(root, log)?,
+        server_jar: !artifacts::reuse_imported(root, log).map_err(Error::Io)?,
         jdk: !exporters::available(root),
     })
 }
@@ -44,8 +81,8 @@ pub struct Missing {
 }
 
 /// What the resources of `root` (or `output`) lack.
-pub fn missing(root: &Path, output: Option<&Path>) -> Result<Missing, String> {
-    let lock = Lock::read(root)?;
+pub fn missing(root: &Path, output: Option<&Path>) -> Result<Missing, Error> {
+    let lock = Lock::read(root).map_err(Error::Lock)?;
     let resources = crate::resources_dir(root, &lock.version, output);
     Ok(Missing {
         prepared: resources.join("sunrise-resources.json").is_file(),
@@ -64,7 +101,8 @@ pub struct Added {
     pub missing: Vec<(&'static str, &'static str)>,
 }
 
-/// Adds the extras the resources lack (or those of `only`), each from the first of `folders` that has it.
+/// Adds the extras the resources lack (or those of `only`), each from the first of `folders` that has it. No
+/// folders add nothing, as the launcher's own completion does: there is no default folder.
 pub fn add(
     root: &Path,
     output: Option<&Path>,
@@ -72,30 +110,23 @@ pub fn add(
     folders: &[PathBuf],
     inputs: &Inputs,
     log: Log,
-) -> Result<Added, String> {
+) -> Result<Added, Error> {
     let Missing {
         resources,
         prepared,
         extras: lacking,
     } = missing(root, output)?;
     if !prepared {
-        return Err(format!(
-            "{} is not prepared: sunrise-prepare --prepare",
-            resources.display()
-        ));
+        return Err(Error::Unprepared(resources));
     }
-    let folders: Vec<Option<&Path>> = match folders {
-        [] => vec![None],
-        some => some.iter().map(|f| Some(f.as_path())).collect(),
-    };
     let mut done = Added::default();
     for (kind, _) in lacking {
-        if only.is_some_and(|only| !only.iter().any(|k| k == kind)) {
+        if folders.is_empty() || only.is_some_and(|only| !only.iter().any(|k| k == kind)) {
             continue;
         }
         let mut first_error = None;
         let added = folders.iter().any(|folder| {
-            crate::add_assets(kind, root, output, *folder, inputs, log)
+            crate::add_assets(kind, root, output, Some(folder.as_path()), inputs, log)
                 .map_err(|e| first_error.get_or_insert(e))
                 .is_ok()
         });
@@ -108,7 +139,7 @@ pub fn add(
         let data = resources.join(DATA_FILE);
         match std::fs::remove_file(&data) {
             Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
-                return Err(format!("{}: {e}", data.display()));
+                return Err(Error::Io(format!("{}: {e}", data.display())));
             }
             _ => {}
         }
@@ -179,8 +210,14 @@ pub fn added_json(added: &Added) -> String {
 }
 
 /// The reply of any of the three when it couldn't answer.
-pub fn error_json(error: &str) -> String {
-    reply(vec![("error", Value::str(error))])
+pub fn error_json(error: &Error) -> String {
+    reply(vec![(
+        "error",
+        Value::Object(vec![
+            ("kind".into(), Value::str(error.kind())),
+            ("message".into(), Value::str(error.to_string())),
+        ]),
+    )])
 }
 
 #[cfg(test)]
@@ -219,8 +256,8 @@ mod tests {
             r#"{"format": 1, "added": ["packs"], "failed": [{"kind": "sounds", "error": "no index"}], "missing": [{"kind": "sounds", "what": "the sounds"}]}"#
         );
         assert_eq!(
-            error_json("no lock"),
-            r#"{"format": 1, "error": "no lock"}"#
+            error_json(&Error::Lock("no lock".into())),
+            r#"{"format": 1, "error": {"kind": "lock", "message": "no lock"}}"#
         );
     }
 
@@ -240,7 +277,48 @@ mod tests {
         let kinds: Vec<_> = found.extras.iter().map(|(k, _)| *k).collect();
         assert_eq!(kinds, ["packs", "panorama", "fonts", "languages", "sounds"]);
         let error = add(&root, None, None, &[], &Inputs::default(), &|_| {}).unwrap_err();
-        assert!(error.contains("is not prepared"), "{error}");
+        assert_eq!(error, Error::Unprepared(found.resources));
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn a_root_without_a_lock_is_the_lock_kind() {
+        let root =
+            std::env::temp_dir().join(format!("sunrise-extras-nolock-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        for error in [
+            missing(&root, None).unwrap_err(),
+            needs(&root, &|_| {}).unwrap_err(),
+            add(&root, None, None, &[], &Inputs::default(), &|_| {}).unwrap_err(),
+        ] {
+            assert_eq!(error.kind(), "lock", "{error}");
+        }
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn no_folders_add_nothing_and_leave_every_extra_missing() {
+        let root =
+            std::env::temp_dir().join(format!("sunrise-extras-nofolders-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let resources = root.join(".local/sunrise-client/9.9");
+        std::fs::create_dir_all(&resources).unwrap();
+        std::fs::write(
+            root.join("research-lock.json"),
+            r#"{"minecraft": {"version": "9.9", "java_major": 25}}"#,
+        )
+        .unwrap();
+        std::fs::write(resources.join("sunrise-resources.json"), "{}").unwrap();
+        std::fs::write(resources.join(DATA_FILE), "cache").unwrap();
+        let done = add(&root, None, None, &[], &Inputs::default(), &|_| {}).unwrap();
+        assert_eq!((done.added.len(), done.failed.len()), (0, 0));
+        let kinds: Vec<_> = done.missing.iter().map(|(k, _)| *k).collect();
+        assert_eq!(kinds, ["packs", "panorama", "fonts", "languages", "sounds"]);
+        assert!(
+            resources.join(DATA_FILE).is_file(),
+            "nothing added keeps the cache"
+        );
         std::fs::remove_dir_all(&root).unwrap();
     }
 }

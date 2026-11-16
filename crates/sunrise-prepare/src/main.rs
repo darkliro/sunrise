@@ -78,7 +78,8 @@ Full preparation also imports all four after extracting the client JAR's placeho
 sunrise-prepare needs says whether preparing will need a server jar (no verified import to reuse) and a JDK
 (no matching exporters shipped). sunrise-prepare missing-extras lists what prepared resources lack of packs,
 panorama, fonts, languages and sounds. sunrise-prepare extras adds what they lack (--only: some kinds), each
-from the first --minecraft-dir whose asset store has it; exit 1 when one stays missing. With --json each prints
+from the first --minecraft-dir whose asset store has it (none given: nothing is added); exit 1 when one
+failed. With --json each prints
 JSON on stdout (docs/api/prepare-extras.md).
 
 sunrise-prepare sounds copies the pinned version's sounds (about 380 MB) from the official

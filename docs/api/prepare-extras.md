@@ -55,9 +55,10 @@ Each takes `--root PATH` (default: the folder the program is in, else the neares
 
 ### `extras --json`
 
-Adds what the resources lack, each from the first `--minecraft-dir` whose asset store has it (none given: the
-official launcher's folder, or `SUNRISE_MINECRAFT_DIR`). `--assets-dir` and `--version-json` name a store for every
-folder. Nothing is downloaded and nothing else is prepared.
+Adds what the resources lack, each from the first `--minecraft-dir` whose asset store has it. With no
+`--minecraft-dir` it adds nothing and tries nothing, as the launcher's own completion does with no folders found:
+there is no default folder, so a caller names every folder it means. `--assets-dir` and `--version-json` name a
+store for every folder. Nothing is downloaded and nothing else is prepared.
 
 - `--only packs,fonts`: only these kinds. An unknown kind exits 2.
 - Every line on stdout is one JSON object. `{"message": string}` lines come first, as `--progress json`'s do; the
@@ -72,15 +73,30 @@ folder. Nothing is downloaded and nothing else is prepared.
   (`sunrise-data.bin`), which would otherwise keep answering that they are missing.
 - `failed`: each kind no folder could give, with the first folder's reason.
 - `missing`: what the resources still lack afterwards, of every kind, as in `missing-extras`.
-- Exit 0 when nothing failed, 1 when an extra stayed missing (with the reply) or on an error reply.
+- Exit 0 when nothing failed, 1 when an extra failed (with the reply) or on an error reply. An extra left missing
+  because no folder was given is in `missing`, not `failed`.
 - Resources that aren't prepared are an error: prepare them first.
 
 ### Errors and exit codes
 
-- An error reply, the last line on stdout, with `error:` and the same text on stderr:
-  `{"format": 1, "error": "…"}`.
-- Exit 2: a refused command line, with no JSON. That includes `--prepare`, `--server-jar`, `--check`,
-  `--progress` and `--launch-api` given to these commands.
+An error reply is the last line on stdout, with `error:` and the message on stderr, and exits 1. It has the
+`{"kind", "message"}` shape every launcher-split contract uses (`sunrise-server engine-command` too):
+
+```json
+{"format": 1, "error": {"kind": "lock", "message": "…"}}
+```
+
+| `kind` | Means |
+| --- | --- |
+| `lock` | `--root` has no `research-lock.json`, or it doesn't name a safe version |
+| `unprepared` | `extras` was asked to add to resources that aren't prepared: prepare them first |
+| `io` | a file couldn't be read, linked or removed (reusing a sibling's import, removing `sunrise-data.bin`) |
+
+These three are every kind: each is one case of `extras::Error::kind`, with no catch-all. An extra that couldn't be
+added is not an error: it is in `extras`' `failed`.
+
+Exit 2 is a refused command line, with no JSON. That includes `--prepare`, `--server-jar`, `--check`, `--progress`
+and `--launch-api` given to these commands.
 
 ### Reading them
 
