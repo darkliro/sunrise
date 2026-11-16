@@ -123,7 +123,7 @@ class NightlyBuildSnapshotTests(unittest.TestCase):
             (root / "tools/ci/sign_release.sh").write_text(
                 'for file in "${@:2}"; do test -f "$file" || exit 9; done\nprintf "%s\\n" "$@" > signed\n')
             for name in ("sunrise-linux-x86_64.tar.gz", "sunrise-windows-x64.zip", "sunrise-macos-arm64.zip",
-                         "sunrise-server-linux-x86_64.tar.gz", "sunrise-source.tar.gz"):
+                         "sunrise-server-linux-x86_64.tar.gz", "sunrise-source.tar.gz", "sunrise-release.json"):
                 (root / "dist" / name).touch()
             for kind, code in (("snapshot", 0), ("nightly", 1)):
                 result = subprocess.run(["bash", "-e", "-o", "pipefail", "-c", sign], cwd=root,

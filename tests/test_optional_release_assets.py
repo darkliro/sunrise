@@ -13,7 +13,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 REQUIRED = {
     "sunrise-linux-x86_64.tar.gz", "sunrise-windows-x64.zip", "sunrise-macos-arm64.zip",
-    "sunrise-macos-x64.zip", "sunrise-server-linux-x86_64.tar.gz", "sunrise-source.tar.gz",
+    "sunrise-macos-x64.zip", "sunrise-server-linux-x86_64.tar.gz", "sunrise-source.tar.gz", "sunrise-release.json",
 }
 OPTIONAL = ("sunrise-windows-arm64.zip", "sunrise-linux-musl-x86_64.tar.gz")
 # The bash on PATH, as in test_pr_ready: Windows' CreateProcess looks in System32 before PATH, so a bare "bash"

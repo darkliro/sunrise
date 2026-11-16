@@ -148,6 +148,21 @@ jobs:
           path: sunrise-source.tar.gz
           if-no-files-found: error
           retention-days: 3
+      - name: The release file a launcher reads first (sunrise-release.json, docs/api/release-file.md)
+        # From the built commit through `git show`: like the source archive, git objects only, nothing run.
+        if: steps.pick.outputs.build == 'true'
+        env:
+          SHA: ${{ steps.pick.outputs.sha }}
+          DATE: ${{ steps.pick.outputs.date }}
+          KIND: ${{ inputs.kind }}
+        run: python3 tools/release_file.py write --channel "$KIND" --date "$DATE" --commit "$SHA" sunrise-release.json
+      - uses: actions/upload-artifact@v7
+        if: steps.pick.outputs.build == 'true'
+        with:
+          name: sunrise-release
+          path: sunrise-release.json
+          if-no-files-found: error
+          retention-days: 3
       - uses: actions/upload-artifact@v7
         with:
           name: nightly-notes
@@ -226,7 +241,7 @@ jobs:
           bash tools/ci/sign_release.sh "$KIND" dist/sunrise-linux-x86_64.tar.gz dist/sunrise-windows-x64.zip \
             ${arm64[@]+"${arm64[@]}"} ${musl[@]+"${musl[@]}"} ${sdk[@]+"${sdk[@]}"} \
             ${macos[@]+"${macos[@]}"} dist/sunrise-server-linux-x86_64.tar.gz \
-            dist/sunrise-source.tar.gz
+            dist/sunrise-source.tar.gz dist/sunrise-release.json
       - uses: actions/upload-artifact@v7
         with:
           name: signature
@@ -329,6 +344,7 @@ jobs:
             ${macos[@]+"${macos[@]}"} \
             "dist/sunrise-server-linux-x86_64.tar.gz#Nightly dedicated server for Linux (sunrise-server-linux-x86_64.tar.gz)" \
             "dist/sunrise-source.tar.gz#Source of this Nightly, commit ${SHA:0:7} (sunrise-source.tar.gz; kept for good as the tag $SOURCE_TAG)" \
+            "dist/sunrise-release.json#What this build is, for launchers (sunrise-release.json)" \
             dist/SHA256SUMS "${signature[@]}" dist/smoke-test.json
           python3 tools/ci/nightly.py keep-source "$SHA" "$DATE"
           python3 tools/ci/nightly.py prune --days 7

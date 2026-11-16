@@ -101,3 +101,4 @@ Deprecations and breaking changes are in bold. The release notes of the game rel
 | Benchmark report | stable | `"version": 1` |
 | `sunrise-graphics.txt`, `sunrise-extras.txt`, `sunrise-mods.txt` | preview | none |
 | `SHA256SUMS` and `SHA256SUMS.sig` | stable | |
+| `sunrise-release.json` ([release-file.md](release-file.md)) | experimental | `"contract": 1` |
