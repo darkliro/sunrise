@@ -35,6 +35,7 @@ pub(super) fn run() {
 
 fn run_launcher() {
     sunrise_mod_package::holder::retain_capability();
+    native_mods::install_host();
     if let Some(code) = native_mods::internals_rustc_wrapper() {
         std::process::exit(code);
     }

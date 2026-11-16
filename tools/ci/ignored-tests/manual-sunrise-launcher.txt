@@ -8,7 +8,6 @@ sunrise-launcher cull::desktop_tests::desktop_list_renders_the_viewport_after_sc
 sunrise-launcher hardware_probes_run_hidden_after_the_first_frame by-hand manual # requires an interactive Windows desktop and graphics adapter
 sunrise-launcher loaders::forge_install::tests::a_real_installer_installs by-hand manual # real Forge and NeoForge installers over the network; needs SUNRISE_FORGE_TEST_DIR, SUNRISE_FORGE_TEST_JAVA and SUNRISE_FORGE_TEST
 sunrise-launcher loaders::tests::the_real_loaders_install by-hand manual # the real Fabric and Quilt services over the network
-sunrise-launcher native_mods::registry_compile::tests::real_sdk_registry_compile by-hand manual # requires an explicitly prepared private SDK, mod and launcher executable
 sunrise-launcher pictures::tests::a_32k_screenshot_is_read_in_little_memory by-hand manual # slow soak: 2 GiB of pixels; run with --ignored --nocapture
 sunrise-launcher rust_toolchain::tests::managed_arm64_toolchain_builds_the_game ci.yml manual # downloads the managed Windows ARM64 toolchain and builds Sunrise
 sunrise-launcher storage::inventory::eviction_tests::allocated_forty_gib_cleanup_proof by-hand manual # manual allocated 40 GiB proof; requires SUNRISE_EVICTION_PROOF_ROOT in checkout scratch

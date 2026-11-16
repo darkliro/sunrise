@@ -6,7 +6,7 @@ const PLAN: &str = "SUNRISE_NATIVE_REGISTRY_RUSTC_PLAN";
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Plan {
+pub struct Plan {
     pub rustc: PathBuf,
     pub target: String,
     pub cache_wrapper: Option<PathBuf>,
@@ -18,7 +18,7 @@ pub(super) struct Plan {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Bindings {
+pub struct Bindings {
     pub externs: BTreeMap<String, PathBuf>,
     pub link_args: Vec<String>,
 }
@@ -39,7 +39,7 @@ impl Plan {
         Ok(())
     }
 
-    pub(super) fn arguments(
+    pub fn arguments(
         &self,
         mut args: Vec<OsString>,
         manifest: Option<PathBuf>,
@@ -64,41 +64,40 @@ impl Plan {
         let kind = value("--crate-type");
         if target.as_deref() == Some(std::ffi::OsStr::new(&self.target))
             && kind.as_deref() != Some(std::ffi::OsStr::new("proc-macro"))
+            && let Some(bindings) = manifest.as_ref().and_then(|path| self.crates.get(path))
         {
-            if let Some(bindings) = manifest.as_ref().and_then(|path| self.crates.get(path)) {
-                let mut sdk = Vec::new();
-                for path in &self.search {
-                    sdk.push(format!("-L\ndependency={}", path.display()));
-                }
-                sdk.push(format!("-L\nnative={}", self.native.display()));
-                sdk.push("-C\nprefer-dynamic".into());
-                for (name, path) in &bindings.externs {
-                    sdk.push(format!("--extern\n{name}={}", path.display()));
-                }
-                for arg in &bindings.link_args {
-                    sdk.push(format!("-C\nlink-arg={arg}"));
-                }
-                let text = sdk.join("\n");
-                let hash = {
-                    use std::hash::{Hash, Hasher};
-                    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-                    text.hash(&mut hasher);
-                    hasher.finish()
-                };
-                let file = argfiles.join(format!("sdk-args-{hash:016x}.txt"));
-                if !file.exists() {
-                    // Crates compile in parallel: write aside, then rename into place whole.
-                    let partial = argfiles.join(format!(
-                        "sdk-args-{hash:016x}.{}.partial",
-                        std::process::id()
-                    ));
-                    std::fs::write(&partial, &text).map_err(|e| e.to_string())?;
-                    std::fs::rename(&partial, &file).map_err(|e| e.to_string())?;
-                }
-                let mut arg = OsString::from("@");
-                arg.push(&file);
-                args.push(arg);
+            let mut sdk = Vec::new();
+            for path in &self.search {
+                sdk.push(format!("-L\ndependency={}", path.display()));
             }
+            sdk.push(format!("-L\nnative={}", self.native.display()));
+            sdk.push("-C\nprefer-dynamic".into());
+            for (name, path) in &bindings.externs {
+                sdk.push(format!("--extern\n{name}={}", path.display()));
+            }
+            for arg in &bindings.link_args {
+                sdk.push(format!("-C\nlink-arg={arg}"));
+            }
+            let text = sdk.join("\n");
+            let hash = {
+                use std::hash::{Hash, Hasher};
+                let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                text.hash(&mut hasher);
+                hasher.finish()
+            };
+            let file = argfiles.join(format!("sdk-args-{hash:016x}.txt"));
+            if !file.exists() {
+                // Crates compile in parallel: write aside, then rename into place whole.
+                let partial = argfiles.join(format!(
+                    "sdk-args-{hash:016x}.{}.partial",
+                    std::process::id()
+                ));
+                std::fs::write(&partial, &text).map_err(|e| e.to_string())?;
+                std::fs::rename(&partial, &file).map_err(|e| e.to_string())?;
+            }
+            let mut arg = OsString::from("@");
+            arg.push(&file);
+            args.push(arg);
         }
         if let Some(cache) = &self.cache_wrapper {
             Ok((cache.clone(), args))
@@ -108,7 +107,7 @@ impl Plan {
     }
 }
 
-pub(super) fn wrapper() -> Option<i32> {
+pub fn wrapper() -> Option<i32> {
     let path = PathBuf::from(std::env::var_os(PLAN)?);
     let result = (|| -> Result<i32, String> {
         let plan: Plan = serde_json::from_slice(&std::fs::read(&path).map_err(|e| e.to_string())?)
@@ -189,20 +188,25 @@ mod tests {
             if let Some(argfile) = argfile {
                 let text = std::fs::read_to_string(argfile).unwrap();
                 let lines: Vec<&str> = text.lines().collect();
-                assert!(lines
-                    .windows(2)
-                    .any(|pair| pair == ["--extern", "mod_api=/sdk/api.rmeta"]));
-                assert!(lines
-                    .windows(2)
-                    .any(|pair| pair == ["-L", "dependency=/sdk/deps"]));
+                assert!(
+                    lines
+                        .windows(2)
+                        .any(|pair| pair == ["--extern", "mod_api=/sdk/api.rmeta"])
+                );
+                assert!(
+                    lines
+                        .windows(2)
+                        .any(|pair| pair == ["-L", "dependency=/sdk/deps"])
+                );
             }
         }
         let args = vec![OsString::from("/pinned/rustc"), "-vV".into()];
         assert_eq!(plan.arguments(args.clone(), None, &dir).unwrap().1, args);
-        assert!(plan
-            .arguments(vec!["/other/rustc".into()], None, &dir)
-            .unwrap_err()
-            .contains("pinned"));
+        assert!(
+            plan.arguments(vec!["/other/rustc".into()], None, &dir)
+                .unwrap_err()
+                .contains("pinned")
+        );
         std::fs::remove_dir_all(dir).unwrap();
     }
     #[test]

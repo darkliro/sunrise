@@ -522,6 +522,7 @@ dependencies = [
  "sunrise-mod-source",
  "sunrise-mod-surface",
  "sunrise-mod-wasm",
+ "sunrise-native-build",
  "sunrise-port-pack",
  "sunrise-release-sign",
  "tempfile",
@@ -5155,6 +5156,30 @@ dependencies = [
  "objc2-app-kit 0.3.2",
  "objc2-foundation 0.3.2",
  "windows 0.62.2",
+]
+
+[[package]]
+name = "sunrise-native-build"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "libc",
+ "object 0.39.1",
+ "proc-macro2",
+ "quote",
+ "semver",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sunrise-addresses",
+ "sunrise-mod-package",
+ "sunrise-mod-point-emit",
+ "sunrise-mod-vocab",
+ "sunrise-platform",
+ "syn 2.0.119",
+ "tar",
+ "tempfile",
+ "toml",
 ]
 
 [[package]]

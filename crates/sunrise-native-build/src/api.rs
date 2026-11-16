@@ -1,9 +1,9 @@
 //! The launcher's generated executable for trait mods.
-use super::{internals, Bundle};
+use super::{Bundle, internals};
 use std::fs;
 use std::path::Path;
 
-pub(super) fn read(path: &Path) -> Result<toml::Table, String> {
+pub fn read(path: &Path) -> Result<toml::Table, String> {
     let text = fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
     text.parse().map_err(|e| format!("{}: {e}", path.display()))
 }
@@ -13,14 +13,14 @@ fn write(path: &Path, value: &toml::Table) -> Result<(), String> {
     fs::write(path, text).map_err(|e| format!("{}: {e}", path.display()))
 }
 
-pub(super) const PACKAGE: &str = "sunrise-native-game";
+pub const PACKAGE: &str = "sunrise-native-game";
 /// The official game's package and executable (docs/layers.md, "How a Sunrise crate plugs in"):
 /// sunrise-client's game with Sunrise's own parts, the one the release ships as `sunrise-client`.
-pub(super) const OFFICIAL: &str = "sunrise-official";
+pub const OFFICIAL: &str = "sunrise-official";
 
 /// Whether the staged revision has the official game. One from before it ships sunrise-client's
 /// executable, as the release did then.
-pub(super) fn has_official(stage: &Path) -> bool {
+pub fn has_official(stage: &Path) -> bool {
     stage.join("crates/sunrise-official/Cargo.toml").is_file()
 }
 
@@ -34,14 +34,14 @@ fn path_dep(path: &str) -> toml::Table {
 
 const MAIN_TEMPLATE: &str = "crates/sunrise-client/src/native_main.rs.template";
 
-pub(super) fn template(path: &Path) -> Result<String, String> {
+pub fn template(path: &Path) -> Result<String, String> {
     fs::read_to_string(path).ok()
         .filter(|template| ["/* MOD_ENTRIES */", "/* MOD_SLOTS */", "/* BUILT_MODS */"].iter()
             .all(|marker| template.matches(marker).count() == 1))
-        .ok_or_else(|| crate::i18n::tr("This game source has no native inventory entry template. Update Sunrise and rebuild the mods against this game.").to_string())
+        .ok_or_else(|| crate::host::tr("This game source has no native inventory entry template. Update Sunrise and rebuild the mods against this game.").to_string())
 }
 
-pub(super) fn main_rs(
+pub fn main_rs(
     template: &str,
     mods: &[&sunrise_mod_package::Manifest],
     catalog: &internals::Catalog,
@@ -96,21 +96,21 @@ pub(super) fn main_rs(
 }
 
 /// Parsed once from the pipeline's immutable incoming copy, then reused for staging.
-pub(super) struct Project<'a> {
-    pub(super) bundle: &'a Bundle,
-    pub(super) cargo: toml::Table,
-    pub(super) package: String,
+pub struct Project<'a> {
+    pub bundle: &'a Bundle,
+    pub cargo: toml::Table,
+    pub package: String,
     api_deps: Vec<ApiDependency>,
 }
 
 /// The mod API's package, the one crate every mod depends on.
-pub(super) const POINTS_PACKAGE: &str = "sunrise-mod-points";
-pub(super) const API_PACKAGE: &str = "sunrise-mod-api";
+pub const POINTS_PACKAGE: &str = "sunrise-mod-points";
+pub const API_PACKAGE: &str = "sunrise-mod-api";
 
 /// The per-mod facade's package, rewritten to its generated crate.
-pub(super) const INTERNALS_PACKAGE: &str = "sunrise-internals";
+pub const INTERNALS_PACKAGE: &str = "sunrise-internals";
 /// Each game package a mod may depend on, with its library's name.
-pub(super) const PACKAGES: [(&str, &str); 3] = [
+pub const PACKAGES: [(&str, &str); 3] = [
     (API_PACKAGE, "mod_api"),
     (POINTS_PACKAGE, "mod_points"),
     (INTERNALS_PACKAGE, "internals"),
@@ -118,7 +118,7 @@ pub(super) const PACKAGES: [(&str, &str); 3] = [
 
 /// Where a mod's `Cargo.toml` names the SDK package `package`: the copy of its pinned build that
 /// `cargo sunrise-mod` fetches into the project (`.sunrise/sdk/`).
-pub(super) fn sdk_path(package: &str) -> String {
+pub fn sdk_path(package: &str) -> String {
     format!(".sunrise/sdk/api/crates/{package}")
 }
 
@@ -127,7 +127,7 @@ pub(super) fn sdk_path(package: &str) -> String {
 /// The launcher builds against its own copy of the same build. Every other form is refused under
 /// one code, each with its own reason: the git form the path form replaced, a version alone (which
 /// Cargo would resolve from crates.io), any other source selector, and a path elsewhere.
-pub(super) fn sdk_source(key: &str, package: &str, value: &toml::Value) -> Result<(), String> {
+pub fn sdk_source(key: &str, package: &str, value: &toml::Value) -> Result<(), String> {
     let path = sdk_path(package);
     let why = if value.get("git").is_some() {
         "the SDK is no longer named by git".to_owned()
@@ -188,7 +188,7 @@ impl ApiDependency {
 
 #[derive(Debug)]
 #[non_exhaustive]
-pub(super) enum ProjectError {
+pub enum ProjectError {
     Cargo { mod_id: String, reason: String },
     PackageName { mod_id: String },
     ApiDependency { mod_id: String },
@@ -197,7 +197,7 @@ pub(super) enum ProjectError {
 
 impl std::fmt::Display for ProjectError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use crate::i18n::trf;
+        use crate::host::trf;
         let message = match self {
             Self::Cargo { mod_id, reason } => {
                 trf("{mod}: {error}", &[("mod", mod_id), ("error", reason)])
@@ -221,7 +221,7 @@ impl std::error::Error for ProjectError {}
 
 impl<'a> Project<'a> {
     /// The mod's crate name: its `[lib] name`, or its package name with `_` for `-`.
-    pub(super) fn crate_name(&self) -> String {
+    pub fn crate_name(&self) -> String {
         self.cargo
             .get("lib")
             .and_then(|l| l.get("name"))
@@ -229,7 +229,7 @@ impl<'a> Project<'a> {
             .map_or_else(|| self.package.replace('-', "_"), str::to_owned)
     }
 
-    pub(super) fn read(bundle: &'a Bundle) -> Result<Self, ProjectError> {
+    pub fn read(bundle: &'a Bundle) -> Result<Self, ProjectError> {
         let mod_id = || bundle.manifest.id.clone();
         let cargo = read(&bundle.dir.join("Cargo.toml")).map_err(|reason| ProjectError::Cargo {
             mod_id: mod_id(),
@@ -300,7 +300,12 @@ impl<'a> Project<'a> {
                             "workspace",
                         ] {
                             if value.get(selector).is_some() {
-                                return Err(ProjectError::Cargo { mod_id: mod_id(), reason: format!("{key}: {selector} source is refused; use crates.io with Cargo.lock") });
+                                return Err(ProjectError::Cargo {
+                                    mod_id: mod_id(),
+                                    reason: format!(
+                                        "{key}: {selector} source is refused; use crates.io with Cargo.lock"
+                                    ),
+                                });
                             }
                         }
                     }
@@ -354,15 +359,13 @@ impl<'a> Project<'a> {
 
     /// The manifest's dependency tables: `[dependencies]` (no target), then each
     /// `[target.<cfg>.dependencies]`.
-    pub(super) fn dependency_tables(
-        &self,
-    ) -> impl Iterator<Item = (Option<&str>, &toml::Table)> + '_ {
+    pub fn dependency_tables(&self) -> impl Iterator<Item = (Option<&str>, &toml::Table)> + '_ {
         dependency_tables(&self.cargo)
     }
 
     /// The names the mod's code calls the game's packages by (`mod_api` or a
     /// renamed dependency's key), each with its package's library name.
-    pub(super) fn api_dependencies(&self) -> std::collections::BTreeSet<(String, &'static str)> {
+    pub fn api_dependencies(&self) -> std::collections::BTreeSet<(String, &'static str)> {
         self.api_deps
             .iter()
             .map(|api| {
@@ -390,7 +393,7 @@ fn dependency_tables(cargo: &toml::Table) -> impl Iterator<Item = (Option<&str>,
 }
 
 // Add API packages and the generated executable to the fresh staged workspace.
-pub(super) fn stage(
+pub fn stage(
     stage: &Path,
     projects: &[Project<'_>],
     declared: &[Vec<super::dependencies::Dependency>],
@@ -642,18 +645,20 @@ mod tests {
             std::env::consts::DLL_PREFIX,
             std::env::consts::DLL_SUFFIX
         ));
-        assert!(std::process::Command::new("rustc")
-            .args([
-                "--crate-type=dylib",
-                "--crate-name=sunrise_mod_package",
-                "-Cprefer-dynamic"
-            ])
-            .arg(&library_source)
-            .arg("-o")
-            .arg(&library)
-            .status()
-            .unwrap()
-            .success());
+        assert!(
+            std::process::Command::new("rustc")
+                .args([
+                    "--crate-type=dylib",
+                    "--crate-name=sunrise_mod_package",
+                    "-Cprefer-dynamic"
+                ])
+                .arg(&library_source)
+                .arg("-o")
+                .arg(&library)
+                .status()
+                .unwrap()
+                .success()
+        );
         let template =
             "fn main() { std::hint::black_box(&sunrise_mod_package::holder::CAPABILITY); }";
         fs::write(
@@ -661,19 +666,23 @@ mod tests {
             main_rs(template, &[], &internals::Catalog::default()),
         )
         .unwrap();
-        assert!(std::process::Command::new("rustc")
-            .args(["--edition=2021", "-O", "-Cprefer-dynamic", "--extern"])
-            .arg(format!("sunrise_mod_package={}", library.display()))
-            .arg(&source)
-            .arg("-o")
-            .arg(&output)
-            .status()
-            .unwrap()
-            .success());
-        assert!(fs::read(&output)
-            .unwrap()
-            .windows(26)
-            .any(|w| w == b"sunrise-private-holder-v2;"));
+        assert!(
+            std::process::Command::new("rustc")
+                .args(["--edition=2021", "-O", "-Cprefer-dynamic", "--extern"])
+                .arg(format!("sunrise_mod_package={}", library.display()))
+                .arg(&source)
+                .arg("-o")
+                .arg(&output)
+                .status()
+                .unwrap()
+                .success()
+        );
+        assert!(
+            fs::read(&output)
+                .unwrap()
+                .windows(26)
+                .any(|w| w == b"sunrise-private-holder-v2;")
+        );
         fs::remove_dir_all(dir).unwrap();
     }
 
@@ -724,11 +733,15 @@ mod tests {
             ),
             (
                 "{ git = 'https://github.com/arismoko/horizon', rev = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' }",
-                Some("example: E_SDK_SOURCE: sunrise-mod-api: the SDK is no longer named by git; write sunrise-mod-api = { path = \".sunrise/sdk/api/crates/sunrise-mod-api\" }"),
+                Some(
+                    "example: E_SDK_SOURCE: sunrise-mod-api: the SDK is no longer named by git; write sunrise-mod-api = { path = \".sunrise/sdk/api/crates/sunrise-mod-api\" }",
+                ),
             ),
             (
                 "'0.1'",
-                Some("example: E_SDK_SOURCE: sunrise-mod-api: a version names no source, so Cargo would take sunrise-mod-api from crates.io"),
+                Some(
+                    "example: E_SDK_SOURCE: sunrise-mod-api: a version names no source, so Cargo would take sunrise-mod-api from crates.io",
+                ),
             ),
             (
                 "{ version = '0.1', features = ['testing'] }",
@@ -740,7 +753,9 @@ mod tests {
             ),
             (
                 "{ path = '../sunrise/crates/sunrise-mod-api' }",
-                Some("example: E_SDK_SOURCE: sunrise-mod-api: the path must be \".sunrise/sdk/api/crates/sunrise-mod-api\""),
+                Some(
+                    "example: E_SDK_SOURCE: sunrise-mod-api: the path must be \".sunrise/sdk/api/crates/sunrise-mod-api\"",
+                ),
             ),
         ] {
             let text = format!(
@@ -857,17 +872,19 @@ mod tests {
             assert!(!stage_dir.join(GAME).exists());
             assert!(!stage_dir.join("native-api").exists());
         }
-        assert!(!stage(
-            &stage_dir,
-            &[],
-            &[],
-            &super::super::dependencies::Resolution {
-                order: vec![],
-                warnings: Vec::new(),
-            },
-            &internals::Catalog::default(),
-        )
-        .unwrap());
+        assert!(
+            !stage(
+                &stage_dir,
+                &[],
+                &[],
+                &super::super::dependencies::Resolution {
+                    order: vec![],
+                    warnings: Vec::new(),
+                },
+                &internals::Catalog::default(),
+            )
+            .unwrap()
+        );
         fs::remove_dir_all(dir).unwrap();
     }
 

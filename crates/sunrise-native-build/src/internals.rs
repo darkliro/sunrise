@@ -1,6 +1,6 @@
 //! Declared internals, shared by both native build routes.
 use super::{api, inject};
-use crate::i18n::trf;
+use crate::host::trf;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
@@ -8,22 +8,22 @@ use std::{
 };
 use sunrise_mod_package::internals::{self, ListedInternal};
 
-pub(super) const INTERNALS: &str = "internals.json";
+pub const INTERNALS: &str = "internals.json";
 
 #[derive(Default)]
-pub(super) struct Catalog {
-    pub(super) internals: Vec<ListedInternal>,
-    pub(super) discovery: bool,
-    pub(super) points: Vec<inject::ListedPoint>,
+pub struct Catalog {
+    pub internals: Vec<ListedInternal>,
+    pub discovery: bool,
+    pub points: Vec<inject::ListedPoint>,
 }
 
-pub(super) struct Facade {
-    pub(super) source: String,
-    pub(super) crates: BTreeSet<String>,
+pub struct Facade {
+    pub source: String,
+    pub crates: BTreeSet<String>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub(super) enum Error {
+pub enum Error {
     Inject(String),
     Missing {
         mod_id: String,
@@ -56,7 +56,11 @@ impl std::fmt::Display for Error {
                 "E_INTERNAL_MISSING: {mod} uses {path}, which this game doesn't have; run cargo sunrise-mod internals sync to discover this pin's used internals.",
                 &[("mod", mod_id), ("path", path)],
             ),
-            Self::Changed { mod_id, path, signature } => trf(
+            Self::Changed {
+                mod_id,
+                path,
+                signature,
+            } => trf(
                 "E_INTERNAL_CHANGED: {mod} uses {path}, whose signature is now {signature}; run cargo sunrise-mod update to see what changed.",
                 &[("mod", mod_id), ("path", path), ("signature", signature)],
             ),
@@ -64,9 +68,17 @@ impl std::fmt::Display for Error {
                 "E_INTERNAL_GATED: {mod} uses {path}, which exists only under a cfg; target-specific internals aren't supported.",
                 &[("mod", mod_id), ("path", path)],
             ),
-            Self::Ambiguous { mod_id, path, kinds } => trf(
+            Self::Ambiguous {
+                mod_id,
+                path,
+                kinds,
+            } => trf(
                 "E_INTERNAL_AMBIGUOUS: {mod} uses {path}, which has multiple kinds; choose a kind from: {kinds}.",
-                &[("mod", mod_id), ("path", path), ("kinds", &kinds.join(", "))],
+                &[
+                    ("mod", mod_id),
+                    ("path", path),
+                    ("kinds", &kinds.join(", ")),
+                ],
             ),
             Self::Path { path } => trf(
                 "E_INTERNAL_PATH: {path} cannot be re-exported as a declared internal; declare its types or free functions instead.",
@@ -106,7 +118,7 @@ impl From<internals::Error> for Error {
 }
 
 impl Catalog {
-    pub(super) fn target(&self, at: &str) -> Option<&ListedInternal> {
+    pub fn target(&self, at: &str) -> Option<&ListedInternal> {
         self.internals.iter().find(|item| {
             !item.shape_only
                 && plain_path(&item.path) == plain_path(at)
@@ -118,7 +130,7 @@ impl Catalog {
     /// checks it (`[native] sunrise` fixes it exactly). The build records this form in
     /// `native-mods.json`; a declaration that doesn't resolve keeps no hash and is refused by
     /// [`Self::check`].
-    pub(super) fn read(dir: &Path) -> Result<Self, String> {
+    pub fn read(dir: &Path) -> Result<Self, String> {
         let path = dir.join(INTERNALS);
         let listed = inject::catalog(&dir.join(inject::POINTS))?;
         Ok(Self {
@@ -132,7 +144,7 @@ impl Catalog {
     /// checks it (`[native] sunrise` fixes it exactly). The build records this form in
     /// `native-mods.json`; a declaration that doesn't resolve keeps no hash and is refused by
     /// [`Self::check`].
-    pub(super) fn pinned(
+    pub fn pinned(
         &self,
         manifest: &sunrise_mod_package::Manifest,
     ) -> sunrise_mod_package::Manifest {
@@ -161,7 +173,7 @@ impl Catalog {
         pinned
     }
 
-    pub(super) fn check(&self, manifest: &sunrise_mod_package::Manifest) -> Result<(), Error> {
+    pub fn check(&self, manifest: &sunrise_mod_package::Manifest) -> Result<(), Error> {
         super::slots::check(self, manifest).map_err(Error::Inject)?;
         for declared in &manifest.internals {
             internals::check(&self.internals, &manifest.id, declared)?;
@@ -169,7 +181,7 @@ impl Catalog {
         Ok(())
     }
 
-    pub(super) fn prepare<'a>(
+    pub fn prepare<'a>(
         &self,
         manifests: impl IntoIterator<Item = &'a sunrise_mod_package::Manifest>,
     ) -> Result<BTreeMap<&'a str, Facade>, Error> {
@@ -186,16 +198,13 @@ impl Catalog {
             .collect()
     }
 
-    pub(super) fn log_mixins(
-        &self,
-        manifest: &sunrise_mod_package::Manifest,
-    ) -> Result<(), String> {
+    pub fn log_mixins(&self, manifest: &sunrise_mod_package::Manifest) -> Result<(), String> {
         if manifest
             .native
             .as_ref()
             .is_some_and(|n| !n.mixin.is_empty())
         {
-            super::append_log(&crate::i18n::trf(
+            super::append_log(&crate::host::trf(
                 "{mod}: mixins compile game code",
                 &[("mod", &manifest.id)],
             ))?;
@@ -225,7 +234,7 @@ impl Catalog {
     }
 
     /// Re-exports are the compiler's boundary: no module wildcard can widen the declaration.
-    pub(super) fn facade(&self, manifest: &sunrise_mod_package::Manifest) -> Result<Facade, Error> {
+    pub fn facade(&self, manifest: &sunrise_mod_package::Manifest) -> Result<Facade, Error> {
         self.check(manifest)?;
         let mut tree = Module::default();
         let mut crates = BTreeSet::from(["sunrise_client".into()]);
@@ -301,7 +310,7 @@ impl Catalog {
 }
 
 /// Generic arguments belong to a fingerprint, not to a use path or a site target's identity.
-pub(super) fn plain_path(path: &str) -> String {
+pub fn plain_path(path: &str) -> String {
     let mut depth = 0;
     path.chars()
         .filter(|&c| match c {
@@ -353,26 +362,25 @@ impl Module {
     }
 }
 
-pub(super) fn needed(manifest: &sunrise_mod_package::Manifest) -> bool {
+pub fn needed(manifest: &sunrise_mod_package::Manifest) -> bool {
     !manifest.internals.is_empty()
 }
 
-pub(super) fn package(id: &str) -> String {
+pub fn package(id: &str) -> String {
     format!("sunrise-internals-{id}")
 }
-pub(super) fn relative(id: &str) -> String {
+pub fn relative(id: &str) -> String {
     format!("native-internals/{id}")
 }
 
-pub(super) fn stage(
-    stage: &Path,
-    project: &api::Project<'_>,
-    facade: &Facade,
-) -> Result<(), String> {
+pub fn stage(stage: &Path, project: &api::Project<'_>, facade: &Facade) -> Result<(), String> {
     let manifest = &project.bundle.manifest;
     let dest = stage.join(relative(&manifest.id));
     fs::create_dir_all(dest.join("src")).map_err(|e| e.to_string())?;
-    let mut cargo = format!("[package]\nname = {:?}\nversion = \"0.1.0\"\nedition = \"2024\"\n[lib]\nname = \"internals\"\n[dependencies]\nsunrise-client = {{ path = \"../../crates/sunrise-client\", default-features = false }}\n", package(&manifest.id));
+    let mut cargo = format!(
+        "[package]\nname = {:?}\nversion = \"0.1.0\"\nedition = \"2024\"\n[lib]\nname = \"internals\"\n[dependencies]\nsunrise-client = {{ path = \"../../crates/sunrise-client\", default-features = false }}\n",
+        package(&manifest.id)
+    );
     for krate in &facade.crates {
         if krate != "sunrise_client" {
             let package = krate.replace('_', "-");
@@ -449,16 +457,20 @@ mod tests {
         let error = catalog.check(manifest).unwrap_err();
         assert!(matches!(error, Error::Changed { .. }));
         assert!(error.to_string().contains("E_INTERNAL_CHANGED"));
-        assert!(error
-            .to_string()
-            .contains("struct Game<'a> { world: World }"));
+        assert!(
+            error
+                .to_string()
+                .contains("struct Game<'a> { world: World }")
+        );
         catalog.internals[0].cfg = "feature = \"controllers\"".into();
         assert!(matches!(catalog.check(manifest), Err(Error::Gated { .. })));
-        assert!(catalog
-            .check(manifest)
-            .unwrap_err()
-            .to_string()
-            .contains("E_INTERNAL_GATED"));
+        assert!(
+            catalog
+                .check(manifest)
+                .unwrap_err()
+                .to_string()
+                .contains("E_INTERNAL_GATED")
+        );
         catalog.internals[0].shape_only = true;
         assert!(matches!(
             catalog.check(manifest),
@@ -469,11 +481,13 @@ mod tests {
             catalog.check(manifest),
             Err(Error::Missing { .. })
         ));
-        assert!(catalog
-            .check(manifest)
-            .unwrap_err()
-            .to_string()
-            .contains("E_INTERNAL_MISSING"));
+        assert!(
+            catalog
+                .check(manifest)
+                .unwrap_err()
+                .to_string()
+                .contains("E_INTERNAL_MISSING")
+        );
         fs::remove_dir_all(dir).unwrap();
     }
 
@@ -492,9 +506,11 @@ mod tests {
             hash: Some(method.hash),
         };
         let facade = catalog.facade(&bundle.manifest).unwrap();
-        assert!(facade
-            .source
-            .contains("pub use sunrise_client::game::Game;"));
+        assert!(
+            facade
+                .source
+                .contains("pub use sunrise_client::game::Game;")
+        );
         bundle.manifest.internals[1].hash = Some("field".into());
         assert!(
             matches!(catalog.check(&bundle.manifest), Err(Error::Changed { signature, .. }) if signature == method.signature)

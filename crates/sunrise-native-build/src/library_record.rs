@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::{fs, path::Path};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub(super) struct Library {
+pub struct Library {
     pub file: String,
     pub sha256: String,
     pub kind: String,
@@ -12,13 +12,7 @@ pub(super) struct Library {
     pub identity: String,
 }
 
-pub(super) fn stamp(
-    path: &Path,
-    build: &str,
-    id: &str,
-    version: &str,
-    patch: bool,
-) -> Result<(), String> {
+pub fn stamp(path: &Path, build: &str, id: &str, version: &str, patch: bool) -> Result<(), String> {
     let row = Library {
         file: path
             .file_name()
@@ -28,7 +22,7 @@ pub(super) fn stamp(
         sha256: String::new(),
         kind: if patch { "patch" } else { "mod" }.into(),
         mod_id: id.into(),
-        identity: format!("{build} {id} {version} {}", crate::rust_toolchain::VERSION),
+        identity: format!("{build} {id} {version} {}", crate::rust::VERSION),
     };
     fs::write(
         path.with_extension("identity.json"),
@@ -37,7 +31,7 @@ pub(super) fn stamp(
     .map_err(|e| e.to_string())
 }
 
-pub(super) fn validate_exports(path: &Path, id: &str) -> Result<(), String> {
+pub fn validate_exports(path: &Path, id: &str) -> Result<(), String> {
     if !cfg!(windows) {
         return Ok(());
     }
@@ -50,7 +44,7 @@ pub(super) fn validate_exports(path: &Path, id: &str) -> Result<(), String> {
             .map_or(0, |table| table.addresses().len()))
     };
     let count = parse().map_err(|e| {
-        crate::i18n::trf(
+        crate::host::trf(
             "Could not inspect native mod {mod}'s DLL exports: {error}",
             &[("mod", id), ("error", &e)],
         )
@@ -60,7 +54,7 @@ pub(super) fn validate_exports(path: &Path, id: &str) -> Result<(), String> {
 
 fn refuse_exports(id: &str, count: usize) -> Result<(), String> {
     if count > 65_535 {
-        return Err(crate::i18n::trf(
+        return Err(crate::host::trf(
             "Native mod {mod} has {count} DLL exports; Windows permits at most 65,535.",
             &[("mod", id), ("count", &count.to_string())],
         ));
@@ -68,7 +62,7 @@ fn refuse_exports(id: &str, count: usize) -> Result<(), String> {
     Ok(())
 }
 
-pub(super) fn collect(paths: &[std::path::PathBuf]) -> Result<Vec<Library>, String> {
+pub fn collect(paths: &[std::path::PathBuf]) -> Result<Vec<Library>, String> {
     use sha2::{Digest, Sha256};
     let mut rows = Vec::new();
     for path in paths {
@@ -132,7 +126,7 @@ mod tests {
         assert_eq!(json[2]["kind"], "patch");
         assert_eq!(
             rows[0].identity,
-            format!("build dependency 1 {}", crate::rust_toolchain::VERSION)
+            format!("build dependency 1 {}", crate::rust::VERSION)
         );
     }
 }

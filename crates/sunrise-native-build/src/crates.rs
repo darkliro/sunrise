@@ -5,9 +5,9 @@ use std::fs;
 use std::path::{Component, Path, PathBuf};
 
 /// Where the launcher stages the mods' crates.
-pub(super) const DIR: &str = "native-api";
+pub const DIR: &str = "native-api";
 
-pub(super) fn check_game_graph_names(
+pub fn check_game_graph_names(
     stage: &Path,
     text: &str,
     game_names: &BTreeSet<String>,
@@ -89,7 +89,7 @@ pub(super) fn check_game_graph_names(
 /// A crate a mod's crate asks for in its `Cargo.toml`: under its own name or `package`, in any
 /// dependency table (dev and build ones too: the lock has them all).
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct Wanted {
+pub struct Wanted {
     pub mod_id: String,
     pub name: String,
     pub version: String,
@@ -97,7 +97,7 @@ pub(super) struct Wanted {
 }
 
 /// Registry dependencies of each staged crate, validating generated local paths as well.
-pub(super) fn wanted(
+pub fn wanted(
     stage: &Path,
     declared: &BTreeMap<&str, BTreeSet<&str>>,
 ) -> Result<Vec<Wanted>, String> {
@@ -250,7 +250,10 @@ pub(super) fn wanted(
                 "workspace",
             ] {
                 if dep.get(selector).is_some() {
-                    return Err(format!("{}: dependency {key}: {selector} sources are not allowed; use crates.io with Cargo.lock", manifest.display()));
+                    return Err(format!(
+                        "{}: dependency {key}: {selector} sources are not allowed; use crates.io with Cargo.lock",
+                        manifest.display()
+                    ));
                 }
             }
             let version = dep
@@ -325,7 +328,7 @@ fn manifests(dir: &Path) -> Result<Vec<(String, PathBuf)>, String> {
 }
 
 /// Resolve a path within one mod without following links or traversing outside its root.
-pub(super) fn local_path(root: &Path, relative: &Path, path: &str) -> Result<PathBuf, String> {
+pub fn local_path(root: &Path, relative: &Path, path: &str) -> Result<PathBuf, String> {
     if path.contains('\\') {
         return Err("dependency path must use portable separators".into());
     }
@@ -421,7 +424,7 @@ fn validate_sibling_path(
 
 /// `symlink_metadata` reports links without following them. Windows junctions are reparse points
 /// as well, so reject the reparse attribute even if the standard file type is not a symlink.
-pub(super) fn is_link_or_junction(metadata: &fs::Metadata) -> bool {
+pub fn is_link_or_junction(metadata: &fs::Metadata) -> bool {
     let link = metadata.file_type().is_symlink();
     #[cfg(windows)]
     {

@@ -8,7 +8,8 @@ native trait mods against it with rustc alone, in seconds, without the game's so
     python3 tools/prebuilt_game.py exports OUT            # each DLL's exported names, toward Windows' limit
     python3 tools/prebuilt_game.py pack OUT DIST          # the SDK's assets from OUT: runtime-, api- and
                                                           # engine-<target>[-server].tar.xz, build-data.tar.xz
-                                                          # and surface.json, in DIST
+                                                          # and surface.json, in DIST; for the client side also
+                                                          # tool-<target>.tar.xz (cargo-sunrise-mod)
     python3 tools/prebuilt_game.py gather LEGS DIST       # the release folder from every packing leg's DIST, once
                                                           # their build data and surface are checked equal
     python3 tools/prebuilt_game.py index DIST [--nightly NAME] [--previous BUILD DIFF]  # DIST/sdk.json
@@ -96,6 +97,9 @@ BUILD_DATA_ARCHIVE = "build-data.tar.xz"
 SURFACE = "surface.json"
 # xz's default preset: the dictionary covers the large metadata files; the publish legs' time is measured by PR 5.
 XZ_PRESET = 6
+# The SDK's `tool` asset: `cargo sunrise-mod native-build` compiles native mods as the launcher does.
+TOOL = "cargo-sunrise-mod"
+TOOL_PROGRAM = TOOL + (".exe" if sys.platform == "win32" else "")
 
 
 def run(command: list[str], **kwargs) -> str:
@@ -797,19 +801,22 @@ def archives(out: Path, sliced: dict[str, list[str]]) -> dict[str, list[str]]:
 
 def pack(out: Path, dist: Path, stage_tool: Path | None = None) -> None:
     """The SDK release's assets from a checked folder OUT, into DIST: the package as its `runtime`, `api` and `engine`
-    archives for its target and side ([`archives`]), the build data, and the surface export of this source."""
+    archives for its target and side ([`archives`]), the build data, the surface export of this source and, for the
+    client side, the target's `tool` ([`tool`]): one per target, as it serves both sides."""
     check(out)
     identity = json.loads((out / IDENTITY).read_text())
     if identity.get("package_format") != package_format(ROOT) or identity.get("commit") != head():
         sys.exit(f"{out} is not this source's package (format {package_format(ROOT)}, commit {head()})")
     dist.mkdir(parents=True, exist_ok=True)
     suffix = "-server" if identity["side"] == "server" else ""
-    jobs = {dist / f"{kind}-{identity['target']}{suffix}.tar.xz": names
+    jobs = {dist / f"{kind}-{identity['target']}{suffix}.tar.xz": (out, names)
             for kind, names in archives(out, identity["slices"]).items()}
-    jobs[dist / BUILD_DATA_ARCHIVE] = [".", *BUILD_DATA]
+    jobs[dist / BUILD_DATA_ARCHIVE] = (out, [".", *BUILD_DATA])
+    if identity["side"] == "client":
+        jobs[dist / f"tool-{identity['target']}.tar.xz"] = (tool(identity["target"]), [".", TOOL_PROGRAM])
     # Each archive keeps its single xz stream; only independent archives run concurrently.
     with ProcessPoolExecutor(max_workers=len(jobs)) as pool:
-        pending = {archive: pool.submit(tar_xz, out, names, archive) for archive, names in jobs.items()}
+        pending = {archive: pool.submit(tar_xz, folder, names, archive) for archive, (folder, names) in jobs.items()}
         failures = [f"{archive.name}: {error}" for archive, future in pending.items()
                     if (error := future.exception()) is not None]
     if failures:
@@ -819,6 +826,17 @@ def pack(out: Path, dist: Path, stage_tool: Path | None = None) -> None:
     run(command + ["surface", str(ROOT), str(dist / SURFACE)], cwd=ROOT)
     for asset in sorted(dist.iterdir()):
         print(f"{asset.name}: {asset.stat().st_size} bytes")
+
+
+def tool(target: str) -> Path:
+    """The folder holding `cargo-sunrise-mod` built from this source for `target`, which must be this computer."""
+    if rustc_host() != target:
+        sys.exit(f"the tool for {target} is built on that computer, not on {rustc_host()}")
+    run(["cargo", "build", "--locked", "--release", "-p", TOOL, "--bin", TOOL], cwd=ROOT)
+    folder = Path(os.environ.get("CARGO_TARGET_DIR", ROOT / "target")).resolve() / "release"
+    if not (folder / TOOL_PROGRAM).is_file():
+        sys.exit(f"cargo built no {folder / TOOL_PROGRAM}")
+    return folder
 
 
 def members(archive: Path, names: tuple[str, ...]) -> dict[str, str]:

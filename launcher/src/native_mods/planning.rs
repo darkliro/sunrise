@@ -57,7 +57,7 @@ pub(super) fn classify(
     let sdk = match sdk_cache::index(&sdk_base, &revision, &keys) {
         Ok(sdk) => sdk,
         Err(refusal) => {
-            result.unavailable = Some(Refusal::Sdk(refusal));
+            result.unavailable = Some(refusal);
             return Ok(result);
         }
     };

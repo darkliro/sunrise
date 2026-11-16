@@ -352,6 +352,15 @@ fn asset_names_state_kind_target_and_side() {
                 Some(Side::Server),
             )),
         ),
+        (
+            "tool-x86_64-pc-windows-gnu.tar.xz",
+            Some((
+                Kind::Tool,
+                Codec::Xz,
+                Some("x86_64-pc-windows-gnu".into()),
+                None,
+            )),
+        ),
         ("engine-.tar.xz", None),
         ("build-data-x.tar.xz", None),
         ("sdk/engine-x.tar.xz", None),

@@ -167,16 +167,19 @@ pub enum Kind {
     /// Every other file of the prebuilt game: what the engine route (a `[native]` table,
     /// internals or a registry dependency) builds against, with the other two.
     Engine,
+    /// `cargo-sunrise-mod` for one computer: its `native-build` compiles native mods as the launcher does.
+    Tool,
 }
 
 impl Kind {
-    const ALL: [Kind; 6] = [
+    const ALL: [Kind; 7] = [
         Kind::Surface,
         Kind::BuildData,
         Kind::ApiSource,
         Kind::Runtime,
         Kind::Api,
         Kind::Engine,
+        Kind::Tool,
     ];
 
     /// The name `sdk.json` writes.
@@ -188,11 +191,17 @@ impl Kind {
             Kind::Runtime => "runtime",
             Kind::Api => "api",
             Kind::Engine => "engine",
+            Kind::Tool => "tool",
         }
     }
 
-    /// Whether its assets exist once per target (and side).
+    /// Whether its assets exist once per target.
     pub fn per_target(self) -> bool {
+        matches!(self, Kind::Runtime | Kind::Api | Kind::Engine | Kind::Tool)
+    }
+
+    /// Whether its assets also exist once per side: the tool serves both.
+    pub fn per_side(self) -> bool {
         matches!(self, Kind::Runtime | Kind::Api | Kind::Engine)
     }
 }
@@ -217,7 +226,7 @@ pub enum Side {
 
 impl Asset {
     /// The kind, codec, target and side an asset's file name states:
-    /// `surface.json`, `build-data.tar.xz`, `api-source.tar.xz` and
+    /// `surface.json`, `build-data.tar.xz`, `api-source.tar.xz`, `tool-<target>.tar.xz` and
     /// `<runtime|api|engine>-<target>[-server].tar.xz`, where a target is made of `a-z`, `0-9`,
     /// `_` and `-` only. `None` for any other name, so a name this accepts is a plain file name.
     pub fn parts_of(name: &str) -> Option<(Kind, Codec, Option<String>, Option<Side>)> {
@@ -236,18 +245,23 @@ impl Asset {
             return Some((kind, Codec::Xz, None, None));
         }
         let rest = &stem[kind.name().len() + 1..];
-        let (target, side) = match rest.strip_suffix("-server") {
-            Some(target) => (target, Side::Server),
-            None => (rest, Side::Client),
+        let (target, side) = match (kind.per_side(), rest.strip_suffix("-server")) {
+            (false, _) => (rest, None),
+            (true, Some(target)) => (target, Some(Side::Server)),
+            (true, None) => (rest, Some(Side::Client)),
         };
         let plain = |c: char| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-';
         (!target.is_empty() && target.chars().all(plain))
-            .then(|| (kind, Codec::Xz, Some(target.to_owned()), Some(side)))
+            .then(|| (kind, Codec::Xz, Some(target.to_owned()), side))
     }
 
-    /// A per-target asset's file name, as [`Asset::parts_of`] reads it.
+    /// A per-target asset's file name, as [`Asset::parts_of`] reads it; `side` names only a per-side kind's.
     pub fn name(kind: Kind, target: &str, side: Side) -> String {
-        let suffix = if side == Side::Server { "-server" } else { "" };
+        let suffix = if kind.per_side() && side == Side::Server {
+            "-server"
+        } else {
+            ""
+        };
         format!("{}-{target}{suffix}.tar.xz", kind.name())
     }
 }

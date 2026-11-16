@@ -69,7 +69,7 @@ pub const LLVM_MINGW: CToolchain = CToolchain {
 const MINGW_DIR: &str = "mingw64";
 const LLVM_MINGW_DIR: &str = "llvm-mingw";
 
-pub const WINDOWS_X64_TARGET: &str = "x86_64-pc-windows-gnu";
+pub use sunrise_native_build::rust::WINDOWS_X64_TARGET;
 pub const WINDOWS_ARM64_TARGET: &str = "aarch64-pc-windows-gnullvm";
 pub const WINDOWS_X64_MACHINE: u16 = 0x8664;
 pub const WINDOWS_ARM64_MACHINE: u16 = 0xaa64;
@@ -395,76 +395,41 @@ impl Toolchain {
     }
 }
 
-/// Whether the player's environment variable `name` stays out of a build: it would pick another
-/// Rust or wrap it (rustup, `RUSTC_WRAPPER`), or change the compiler's flags (`RUSTFLAGS`, a
-/// profile, incremental, the build's target or linker: `CARGO_BUILD_*` but the jobs,
-/// `CARGO_TARGET_*`),
-/// so the build would differ from the release's and recompile everything after any change.
-pub fn scrubbed(name: &str) -> bool {
-    const PREFIXES: [&str; 3] = ["CARGO_PROFILE_", "CARGO_BUILD_", "CARGO_TARGET_"];
-    // Windows' variable names ignore case.
-    let name = name.to_ascii_uppercase();
-    // The number of jobs changes no flag: a player may still limit it.
-    if name == "CARGO_BUILD_JOBS" {
-        return false;
+impl sunrise_native_build::rust::Toolchain for Toolchain {
+    fn command(&self, program: &Path) -> Command {
+        Toolchain::command(self, program)
     }
-    SCRUBBED.contains(&name.as_str()) || PREFIXES.iter().any(|p| name.starts_with(p))
+
+    fn cargo(&self) -> PathBuf {
+        Toolchain::cargo(self)
+    }
+
+    fn rustc(&self) -> PathBuf {
+        Toolchain::rustc(self)
+    }
+
+    fn configure_cargo(&self, cmd: &mut Command) {
+        Toolchain::configure_cargo(self, cmd)
+    }
+
+    fn target_libdir(&self) -> Option<PathBuf> {
+        Toolchain::target_libdir(self)
+    }
+
+    fn target(&self) -> &str {
+        self.host.target
+    }
+
+    fn cargo_home(&self) -> PathBuf {
+        cargo_home()
+    }
+
+    fn mingw_bin(&self) -> PathBuf {
+        Toolchain::mingw_bin(self)
+    }
 }
 
-/// `ioprio_set`'s "which" for one process.
-#[cfg(target_os = "linux")]
-const IOPRIO_WHO_PROCESS: libc::c_long = 1;
-/// The best-effort I/O class (2) at its lowest level (7), as `ioprio_set` takes it.
-#[cfg(target_os = "linux")]
-const LOW_IO: libc::c_long = (2 << 13) | 7;
-
-/// Runs `cmd` (a build) below the player's own programs, so the desktop and a game in play stay
-/// smooth while it compiles; with the computer otherwise idle it still gets every core. Unix: nice
-/// 19, and on Linux the lowest best-effort I/O level (not the idle class, which gets the disk only
-/// when nothing else uses it, so a game streaming chunks could stall a build);
-/// Windows: below-normal priority, keeping [`crate::process::hide_console`]'s no-console flag
-/// (`creation_flags` sets the whole value, so this sets both).
-pub fn low_priority(cmd: &mut Command) -> &mut Command {
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        // SAFETY: between fork and exec the closure only makes two system calls, which are
-        // async-signal-safe, on the child itself; a failure (not allowed) leaves the priority.
-        unsafe {
-            cmd.pre_exec(|| {
-                libc::setpriority(libc::PRIO_PROCESS, 0, 19);
-                #[cfg(target_os = "linux")]
-                {
-                    libc::syscall(
-                        libc::SYS_ioprio_set,
-                        IOPRIO_WHO_PROCESS,
-                        0 as libc::c_long,
-                        LOW_IO,
-                    );
-                }
-                Ok(())
-            });
-        }
-    }
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const BELOW_NORMAL_PRIORITY_CLASS: u32 = 0x0000_4000;
-        cmd.creation_flags(crate::process::CREATE_NO_WINDOW | BELOW_NORMAL_PRIORITY_CLASS);
-    }
-    cmd
-}
-
-const SCRUBBED: [&str; 8] = [
-    "RUSTUP_TOOLCHAIN",
-    "RUSTC_WRAPPER",
-    "RUSTC_WORKSPACE_WRAPPER",
-    "RUSTFLAGS",
-    "CARGO_ENCODED_RUSTFLAGS",
-    "RUSTDOCFLAGS",
-    "CARGO_ENCODED_RUSTDOCFLAGS",
-    "CARGO_INCREMENTAL",
-];
+pub use sunrise_native_build::rust::{low_priority, scrubbed, SCRUBBED};
 
 /// Where commands run so that no player's Cargo configuration reaches them: the filesystem root
 /// above the launcher's data (`/` on Unix, whatever mount the data is on; the drive's root on
@@ -812,27 +777,7 @@ fn link(full: bool) -> Result<(), String> {
     }
 }
 
-/// What to do when Windows' Smart App Control refused one of the build's programs (#5911). It
-/// lets only signed programs or ones Microsoft knows run, and a build runs programs it has just
-/// compiled (every crate's build script, horizon-mixins, the game) and the toolchain's own
-/// (`dlltool.exe`). Windows refuses them with os error 4551 ("An Application Control policy has
-/// blocked this file"). Nothing is checked before the build: with Smart App Control on, a build
-/// whose programs already ran before it was turned on still succeeds.
-pub fn smart_app_control() -> String {
-    crate::i18n::tr("Windows' Smart App Control is blocking the build (os error 4551). \
-It only lets signed programs run, and a native build runs programs no one has signed: the ones it \
-compiles on this computer and some of the compiler's own. To build native mods, turn it off in \
-Windows Security > App & browser control > Smart App Control settings, then build again. On some \
-Windows versions it can't be turned back on without reinstalling Windows. Content mods (.smod) need \
-no build and work with it on.")
-    .to_string()
-}
-
-/// Whether `text` (a build's output, or the error starting one of its programs) is Windows
-/// refusing a program under an Application Control policy, Smart App Control's.
-pub fn blocked_by_app_control(text: &str) -> bool {
-    text.contains("os error 4551")
-}
+pub use sunrise_native_build::rust::{blocked_by_app_control, smart_app_control};
 
 /// What a Linux build needs from the system, checked before anything is downloaded: a C compiler
 /// (the linker; `ring` and `hidapi` compile C) with the C library's headers and, for the game
@@ -1146,32 +1091,6 @@ mod tests {
         ] {
             assert!(!scrubbed(name), "{name}");
         }
-    }
-
-    #[cfg(target_os = "linux")]
-    #[test]
-    fn builds_run_at_the_lowest_priority() {
-        // Read back from the running child itself: its niceness and its I/O priority.
-        let mut cmd = Command::new("sleep");
-        cmd.arg("5");
-        let mut child = low_priority(&mut cmd).spawn().unwrap();
-        let pid = child.id();
-        // The priority is set between fork and exec; wait for the exec.
-        std::thread::sleep(std::time::Duration::from_millis(200));
-        // SAFETY: plain system calls on a child process of this test.
-        let (nice, io) = unsafe {
-            let nice = libc::getpriority(libc::PRIO_PROCESS, pid as libc::id_t);
-            let io = libc::syscall(
-                libc::SYS_ioprio_get,
-                IOPRIO_WHO_PROCESS,
-                pid as libc::c_long,
-            );
-            (nice, io)
-        };
-        let _ = child.kill();
-        let _ = child.wait();
-        assert_eq!(nice, 19);
-        assert_eq!(io, LOW_IO);
     }
 
     #[test]

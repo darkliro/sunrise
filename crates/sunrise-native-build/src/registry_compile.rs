@@ -1,8 +1,8 @@
 //! Cargo builds each mod as a Rust dylib; the SDK executable remains unchanged.
 use super::{api, dependencies, internals, prebuilt, registry_plan, registry_rustc};
 use crate::{
-    i18n::{tr, trf},
-    rust_toolchain::Toolchain,
+    host::{tr, trf},
+    rust::Toolchain,
 };
 use std::{
     collections::BTreeMap,
@@ -10,19 +10,19 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub(super) struct Options<'a> {
+pub struct Options<'a> {
     pub consent: Option<&'a dyn Fn(&super::RegistryInventory) -> bool>,
     pub adapter: &'a Path,
 }
 
 fn compiler_plan(
-    rust: &Toolchain,
+    rust: &dyn Toolchain,
     game: &Path,
     bindings: BTreeMap<PathBuf, registry_rustc::Bindings>,
 ) -> registry_rustc::Plan {
     registry_rustc::Plan {
         rustc: rust.rustc(),
-        target: rust.host.target.into(),
+        target: rust.target().into(),
         cache_wrapper: std::env::var_os("RUSTC_WRAPPER").map(PathBuf::from),
         workspace_wrapper: std::env::var_os("RUSTC_WORKSPACE_WRAPPER").map(PathBuf::from),
         // Transitive proc-macro metadata lives in host, just as on the direct SDK route.
@@ -35,8 +35,8 @@ fn compiler_plan(
 /// `out` is the mods folder's staging folder, rewritten every build; `target_dir` is cargo's build
 /// folder, kept between builds of the same game build (see `prebuilt::compile`).
 #[allow(clippy::too_many_arguments)]
-pub(super) fn compile(
-    rust: &Toolchain,
+pub fn compile(
+    rust: &dyn Toolchain,
     game: &Path,
     out: &Path,
     target_dir: &Path,
@@ -423,7 +423,7 @@ pub(super) fn compile(
     super::crates::check_game_graph_names(out, &super::read_lock(out)?, &game_names)?;
     let inventory = metadata.inventory(&super::registry_lock::RegistryLock::default(), links)?;
     if inventory.added_crates > 0 && !options.consent.is_some_and(|ask| ask(&inventory)) {
-        return Err(crate::i18n::tr("Registry dependency compilation was not approved").into());
+        return Err(crate::host::tr("Registry dependency compilation was not approved").into());
     }
     let mut externs = prebuilt::wrapper_externs(&deps)?;
     externs.insert("mod_vocab".into(), prebuilt::library(&deps, "mod_vocab")?);
@@ -455,7 +455,7 @@ pub(super) fn compile(
             "--locked",
             "--release",
             "--target",
-            rust.host.target,
+            rust.target(),
         ])
         .arg("--target-dir")
         .arg(target_dir)
@@ -482,7 +482,7 @@ pub(super) fn compile(
     if let Err(failure) = result {
         let mut error = format!("{}\n{}", failure.error, outputs.errors.join("\n"));
         if error.contains("E0277") || error.contains("E0308") {
-            error.push_str(&format!("\n\n{}", crate::i18n::tr("SDK values keep the SDK's Rust crate identities. A registry-built copy of a trait or type is not interchangeable, even at the same version. Type mismatches are refused; SDK libraries are never substituted.")));
+            error.push_str(&format!("\n\n{}", crate::host::tr("SDK values keep the SDK's Rust crate identities. A registry-built copy of a trait or type is not interchangeable, even at the same version. Type mismatches are refused; SDK libraries are never substituted.")));
         }
         return Err(error);
     }
@@ -491,7 +491,7 @@ pub(super) fn compile(
     } else {
         "sunrise-client"
     });
-    let release = target_dir.join(rust.host.target).join("release");
+    let release = target_dir.join(rust.target()).join("release");
     let mut runtime = prebuilt::runtime_libraries(rust, &sdk, game)?;
     for &index in &resolution.order {
         let project = &projects[index];
@@ -510,7 +510,11 @@ pub(super) fn compile(
     super::library_record::validate_exports(&library, "sunrise_patch")?;
     super::library_record::stamp(&library, sdk.commit(), "sunrise_patch", "0", true)?;
     runtime.push(library);
-    for library in outputs.runtime(&metadata.runtime_packages()?, target_dir)? {
+    for library in outputs.runtime(
+        &metadata.runtime_packages()?,
+        target_dir,
+        &rust.cargo_home(),
+    )? {
         if let Some(existing) = runtime
             .iter()
             .find(|existing| existing.file_name() == library.file_name())
@@ -597,7 +601,8 @@ mod tests {
     #[ignore = "daily"]
     fn registry_adapter_compiles_facade_with_transitive_host_macro_metadata() {
         use std::{ffi::OsString, process::Command};
-        let target = Path::new(env!("CARGO_MANIFEST_DIR")).join("../target/registry-facade-tests");
+        let target =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/registry-facade-tests");
         fs::create_dir_all(&target).unwrap();
         let scratch = tempfile::tempdir_in(target).unwrap();
         let game = scratch.path().join("sdk");
@@ -610,10 +615,9 @@ mod tests {
             .output()
             .unwrap();
         assert!(sysroot.status.success());
-        let rust = Toolchain {
-            dir: PathBuf::from(String::from_utf8(sysroot.stdout).unwrap().trim()),
-            host: crate::rust_toolchain::host().expect("supported test host"),
-        };
+        let rust = crate::rust::tests::system(PathBuf::from(
+            String::from_utf8(sysroot.stdout).unwrap().trim(),
+        ));
         let macros = game.join("host").join(format!(
             "{}sdk_macros{}",
             std::env::consts::DLL_PREFIX,
@@ -660,7 +664,7 @@ mod tests {
                 "-C",
                 "prefer-dynamic",
                 "--target",
-                rust.host.target,
+                rust.target(),
             ])
             .arg(&engine_source)
             .arg("--extern")
@@ -701,7 +705,7 @@ mod tests {
             "--edition".into(),
             "2024".into(),
             "--target".into(),
-            rust.host.target.into(),
+            rust.target().into(),
             "--emit".into(),
             "metadata".into(),
             "-o".into(),
@@ -747,7 +751,7 @@ mod tests {
                     "--emit",
                     "metadata",
                     "--target",
-                    rust.host.target,
+                    rust.target(),
                 ])
                 .arg(source)
                 .arg("-o")
@@ -842,7 +846,7 @@ mod tests {
             code: true,
         }];
         let resolution = dependencies::resolve(&inputs).unwrap();
-        let rust = crate::rust_toolchain::install(|_| {}).unwrap();
+        let rust = crate::rust::tests::system(required("SUNRISE_TEST_REGISTRY_RUST"));
         let approve = std::env::var_os("SUNRISE_TEST_REGISTRY_DECLINE").is_none();
         let result = compile(
             &rust,

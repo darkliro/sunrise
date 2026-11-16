@@ -19,25 +19,25 @@ pub struct Inventory {
 
 impl Inventory {
     pub fn label(&self) -> String {
-        crate::i18n::trf(
+        crate::host::trf(
             "Native mod adds {count} registry crates",
             &[("count", &self.added_crates.to_string())],
         )
     }
     pub fn detail(&self) -> String {
-        let none = crate::i18n::tr("None");
+        let none = crate::host::tr("None");
         let scripts = self.build_scripts.join(", ");
         let macros = self.proc_macros.join(", ");
         [
-            crate::i18n::tr("Registry dependencies are native code. Their build scripts and proc macros run during compilation, before the game starts.").to_owned(),
-            crate::i18n::trf("Build scripts: {crates}", &[("crates", if self.build_scripts.is_empty() { none } else { &scripts })]),
-            crate::i18n::trf("Proc macros: {crates}", &[("crates", if self.proc_macros.is_empty() { none } else { &macros })]),
+            crate::host::tr("Registry dependencies are native code. Their build scripts and proc macros run during compilation, before the game starts.").to_owned(),
+            crate::host::trf("Build scripts: {crates}", &[("crates", if self.build_scripts.is_empty() { none } else { &scripts })]),
+            crate::host::trf("Proc macros: {crates}", &[("crates", if self.proc_macros.is_empty() { none } else { &macros })]),
         ].join("\n\n")
     }
 }
 
 #[derive(Deserialize)]
-pub(super) struct Metadata {
+pub struct Metadata {
     pub packages: Vec<Package>,
     workspace_members: Vec<String>,
     resolve: Resolve,
@@ -62,7 +62,7 @@ struct Kind {
 }
 
 #[derive(Deserialize)]
-pub(super) struct Package {
+pub struct Package {
     id: String,
     pub name: String,
     pub version: String,
@@ -71,7 +71,7 @@ pub(super) struct Package {
     pub targets: Vec<Target>,
 }
 #[derive(Deserialize)]
-pub(super) struct Target {
+pub struct Target {
     pub kind: Vec<String>,
 }
 
@@ -148,10 +148,12 @@ impl Metadata {
                 .links
                 .as_ref()
                 .filter(|_| runtime.contains(package.id.as_str()))
+                && let Some(existing) = links.iter().find(|claim| &claim.library == library)
             {
-                if let Some(existing) = links.iter().find(|claim| &claim.library == library) {
-                    return Err(format!("Native library {library}: mod package {} {} would compile a second provider of SDK package {} {}; the prebuilt game cannot be relinked with a different provider", package.name, package.version, existing.name, existing.version));
-                }
+                return Err(format!(
+                    "Native library {library}: mod package {} {} would compile a second provider of SDK package {} {}; the prebuilt game cannot be relinked with a different provider",
+                    package.name, package.version, existing.name, existing.version
+                ));
             }
             if game
                 .packages
@@ -184,8 +186,8 @@ impl Metadata {
     }
 }
 
-pub(super) fn read(
-    rust: &crate::rust_toolchain::Toolchain,
+pub fn read(
+    rust: &dyn crate::rust::Toolchain,
     workspace: &std::path::Path,
 ) -> Result<Metadata, String> {
     let output = super::cargo(rust, workspace, "metadata")
@@ -194,7 +196,7 @@ pub(super) fn read(
             "--format-version",
             "1",
             "--filter-platform",
-            rust.host.target,
+            rust.target(),
         ])
         .output()
         .map_err(|e| e.to_string())?;

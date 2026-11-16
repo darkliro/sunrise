@@ -49,6 +49,8 @@ READERS = {
         "Cargo.lock", "crates/sunrise-mod-api", "crates/sunrise-mod-package/src/sdk/fixture.tar.xz",
         "crates/sunrise-mod-package/tests/index", "docs/modding/src/how-to/native-mods.md", "tools/ci/rust-version",
     ],
+    # The pinned Rust, and the mods library's template its tests render.
+    "sunrise-native-build": ["crates/sunrise-client/src/native_mod_entry.rs.template", "tools/ci/rust-version"],
     "sunrise-client": SUNRISE_CLIENT,
     # Shares sunrise-client's sources, so its unit tests run the same reads.
     "sunrise-client-lib": SUNRISE_CLIENT,
@@ -108,6 +110,13 @@ SCANNED = {"sunrise-client-core": ["crates"]}
 NOT_READS = {
     "sunrise-client": {"crates"}, "sunrise-client-lib": {"crates"}, "sunrise-mod-package": {"crates"},
     "sunrise-mod-vocab": {"."}, "sunrise-port-pack": {"mods"}, "sunrise-prepare": {"crates"},
+    # Paths inside a staged game source or a test's scratch folder, never this checkout's files.
+    "sunrise-native-build": {
+        "Cargo.lock", "crates/sunrise-client/Cargo.toml", "crates/sunrise-client/build.rs", "crates/sunrise-client/src",
+        "crates/sunrise-client/src/native_main.rs.template", "crates/sunrise-core/src", "crates/sunrise-core/src/storage.rs",
+        "crates/sunrise-mod-api", "crates/sunrise-mod-host", "crates/sunrise-mod-host/Cargo.toml", "crates/sunrise-official",
+        "crates/sunrise-official/Cargo.toml",
+    },
 }
 
 

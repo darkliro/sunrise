@@ -2,9 +2,9 @@
 use super::{Bundle, MANIFEST};
 use std::{fs, path::Path};
 use sunrise_mod_package::mod_surface::uses::USES_FILE;
-use sunrise_mod_package::{manifest, Package};
+use sunrise_mod_package::{Package, manifest};
 
-pub(super) fn read(dir: &Path) -> Result<Option<Bundle>, String> {
+pub fn read(dir: &Path) -> Result<Option<Bundle>, String> {
     for old in [
         "sunrise-native.json",
         "horizon-mixin.toml",
@@ -30,7 +30,7 @@ pub(super) fn read(dir: &Path) -> Result<Option<Bundle>, String> {
         .as_ref()
         .and_then(|native| native.state.first())
     {
-        return Err(crate::i18n::trf(
+        return Err(crate::host::trf(
             "E_MIXIN_STATE_LAYOUT: {mod}:{state}: native state changes the prebuilt game's layout; use an attachment instead",
             &[("mod", &package.manifest.id), ("state", &state.id)],
         ));
@@ -43,7 +43,7 @@ pub(super) fn read(dir: &Path) -> Result<Option<Bundle>, String> {
 }
 
 /// Generate tool input in the build's incoming copy, never in a modder's project.
-pub(super) fn tool_manifest(bundle: &Bundle) -> Result<(), String> {
+pub fn tool_manifest(bundle: &Bundle) -> Result<(), String> {
     let mut manifest = toml::Table::new();
     manifest.insert(
         "mod".into(),
@@ -86,7 +86,7 @@ fn checked_files(bundle: &Bundle) -> Result<std::collections::BTreeMap<String, V
     Package::read(&bundle.dir)?.directory_files(&bundle.dir)
 }
 
-pub(super) fn files(bundle: &Bundle) -> Result<Vec<(String, std::path::PathBuf)>, String> {
+pub fn files(bundle: &Bundle) -> Result<Vec<(String, std::path::PathBuf)>, String> {
     Ok(checked_files(bundle)?
         .into_keys()
         .map(|name| {
@@ -98,7 +98,7 @@ pub(super) fn files(bundle: &Bundle) -> Result<Vec<(String, std::path::PathBuf)>
 
 /// The package's files and its uses table, which is no source file: a copy is judged against
 /// another game build as the package was.
-pub(super) fn copy(bundle: &Bundle, to: &Path) -> Result<(), String> {
+pub fn copy(bundle: &Bundle, to: &Path) -> Result<(), String> {
     let mut files = checked_files(bundle)?;
     if let Ok(table) = fs::read(bundle.dir.join(USES_FILE)) {
         files.insert(USES_FILE.to_owned(), table);
@@ -107,7 +107,7 @@ pub(super) fn copy(bundle: &Bundle, to: &Path) -> Result<(), String> {
 }
 
 /// Only code enters the tool; runtime resource packs stay with the package.
-pub(super) fn copy_tool_input(bundle: &Bundle, to: &Path) -> Result<(), String> {
+pub fn copy_tool_input(bundle: &Bundle, to: &Path) -> Result<(), String> {
     copy_files(
         to,
         checked_files(bundle)?.into_iter().filter(|(name, _)| {
@@ -132,7 +132,7 @@ fn copy_files(to: &Path, files: impl IntoIterator<Item = (String, Vec<u8>)>) -> 
 /// A package that can't be read stops the scan, naming the mod: every enabled native mod compiles
 /// into one game binary, and every other native refusal stops that build the same way. Leaving
 /// one mod out would quietly build a different set than the player enabled.
-pub(super) fn checked_bundles(folder: &Path) -> Result<Vec<Bundle>, String> {
+pub fn checked_bundles(folder: &Path) -> Result<Vec<Bundle>, String> {
     let paths = sunrise_mod_package::find(folder)
         .into_iter()
         .chain(sunrise_mod_package::find(
@@ -173,7 +173,7 @@ pub(super) fn checked_bundles(folder: &Path) -> Result<Vec<Bundle>, String> {
                 .layouts
                 .first_difference(&library.manifest.id, &library.layouts)
             {
-                crate::i18n::trf(
+                crate::host::trf(
                     "{mod}: layout mismatch in library {library} for type {type}",
                     &[
                         ("mod", &dependent.manifest.id),
@@ -182,7 +182,13 @@ pub(super) fn checked_bundles(folder: &Path) -> Result<Vec<Bundle>, String> {
                     ],
                 )
             } else {
-                crate::i18n::trf("{library} is a wasm mod; native mod {mod} depends on it: mixed native and wasm dependencies aren't supported yet", &[("library", &library.manifest.id), ("mod", &dependent.manifest.id)])
+                crate::host::trf(
+                    "{library} is a wasm mod; native mod {mod} depends on it: mixed native and wasm dependencies aren't supported yet",
+                    &[
+                        ("library", &library.manifest.id),
+                        ("mod", &dependent.manifest.id),
+                    ],
+                )
             };
             return Err(reason);
         }
@@ -266,7 +272,10 @@ mod mixed_tests {
 
     #[test]
     fn native_to_wasm_matching_layout_is_still_unsupported() {
-        assert_eq!(refusal("0123456789abcdef"), "lib is a wasm mod; native mod addon depends on it: mixed native and wasm dependencies aren't supported yet");
+        assert_eq!(
+            refusal("0123456789abcdef"),
+            "lib is a wasm mod; native mod addon depends on it: mixed native and wasm dependencies aren't supported yet"
+        );
     }
 }
 

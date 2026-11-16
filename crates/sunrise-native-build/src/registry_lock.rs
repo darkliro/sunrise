@@ -4,14 +4,14 @@ use std::collections::BTreeMap;
 const CRATES_IO: &str = sunrise_addresses::CARGO_CRATES_IO_SOURCE;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(super) struct Identity {
+pub struct Identity {
     pub name: String,
     pub version: semver::Version,
     pub source: String,
 }
 
 #[derive(Clone, Debug)]
-pub(super) struct Record {
+pub struct Record {
     checksum: Option<String>,
     edges: std::collections::BTreeSet<Identity>,
     raw: toml::Table,
@@ -25,7 +25,7 @@ struct Reference {
 }
 
 #[derive(Clone, Debug, Default)]
-pub(super) struct RegistryLock {
+pub struct RegistryLock {
     pub packages: BTreeMap<Identity, Record>,
     local: BTreeMap<Identity, Record>,
 }
@@ -57,7 +57,7 @@ impl RegistryLock {
                 Some(_) => {
                     return Err(format!(
                         "Cargo.lock: {name} {version}: only crates.io sources are allowed"
-                    ))
+                    ));
                 }
             };
             let checksum = if source.is_empty() {
@@ -265,7 +265,21 @@ impl RegistryLock {
                         .collect::<Vec<_>>()
                         .join(", ")
                 };
-                return Err(format!("Cargo.lock: game or pinned package {} moved or changed its dependency graph: [{}] -> [{}]", id.name, owners.iter().map(|(old, pin)| format!("{} {}: {}", old.name, old.version, labels(&pin.edges))).collect::<Vec<_>>().join("; "), labels(&record.edges)));
+                return Err(format!(
+                    "Cargo.lock: game or pinned package {} moved or changed its dependency graph: [{}] -> [{}]",
+                    id.name,
+                    owners
+                        .iter()
+                        .map(|(old, pin)| format!(
+                            "{} {}: {}",
+                            old.name,
+                            old.version,
+                            labels(&pin.edges)
+                        ))
+                        .collect::<Vec<_>>()
+                        .join("; "),
+                    labels(&record.edges)
+                ));
             }
         }
         for (id, record) in &resolved.packages {
@@ -402,7 +416,9 @@ impl RegistryLock {
 mod tests {
     use super::*;
     fn lock(source: &str, checksum: &str) -> String {
-        format!("version = 4\n[[package]]\nname = 'itoa'\nversion = '1.0.15'\nsource = '{source}'\nchecksum = '{checksum}'\n")
+        format!(
+            "version = 4\n[[package]]\nname = 'itoa'\nversion = '1.0.15'\nsource = '{source}'\nchecksum = '{checksum}'\n"
+        )
     }
     fn patched_graph(version: &str, registry: bool) -> String {
         let source = if registry {
@@ -410,7 +426,9 @@ mod tests {
         } else {
             ""
         };
-        format!("version=4\n[[package]]\nname='allocator'\nversion='1.0.0'\nsource='registry+https://github.com/rust-lang/crates.io-index'\nchecksum='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'\ndependencies=['allocator-sys']\n[[package]]\nname='allocator-sys'\nversion='{version}'\n{source}\n")
+        format!(
+            "version=4\n[[package]]\nname='allocator'\nversion='1.0.0'\nsource='registry+https://github.com/rust-lang/crates.io-index'\nchecksum='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'\ndependencies=['allocator-sys']\n[[package]]\nname='allocator-sys'\nversion='{version}'\n{source}\n"
+        )
     }
 
     #[test]
@@ -537,14 +555,18 @@ mod tests {
             "registry+https://example.invalid/index",
             "sparse+https://index.crates.io/",
         ] {
-            assert!(RegistryLock::parse(&lock(source, &checksum))
-                .unwrap_err()
-                .contains("only crates.io"));
+            assert!(
+                RegistryLock::parse(&lock(source, &checksum))
+                    .unwrap_err()
+                    .contains("only crates.io")
+            );
         }
         for checksum in ["", "no checksum", &"A".repeat(64), &"a".repeat(63)] {
-            assert!(RegistryLock::parse(&lock(CRATES_IO, checksum))
-                .unwrap_err()
-                .contains("checksum"));
+            assert!(
+                RegistryLock::parse(&lock(CRATES_IO, checksum))
+                    .unwrap_err()
+                    .contains("checksum")
+            );
         }
         assert!(RegistryLock::parse("version = 4").is_err());
     }

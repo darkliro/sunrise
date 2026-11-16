@@ -1,20 +1,20 @@
 //! Build each API-only native mod as its own Rust dylib from SDK metadata.
 //! The executable is fixed and the engine archive is never read.
 use super::{api, dependencies, internals, prebuilt};
-use crate::rust_toolchain::Toolchain;
+use crate::rust::Toolchain;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 /// The template the mods library is written from, in the `api` slice.
-pub(super) const TEMPLATE: &str = "native_mod_entry.rs.template";
+pub const TEMPLATE: &str = "native_mod_entry.rs.template";
 /// The folder of the runtime slice holding the fixed executable.
 const BIN: &str = "bin";
 
 /// Compile the mods in dependency order against API metadata and the runtime's dynamic
 /// closure. Return the unchanged executable and its runtime libraries, followed by mod dylibs.
-pub(super) fn compile(
-    rust: &Toolchain,
+pub fn compile(
+    rust: &dyn Toolchain,
     package: &prebuilt::Package,
     out: &Path,
     projects: &[api::Project<'_>],
@@ -65,5 +65,5 @@ pub(super) fn compile(
     for &index in &resolution.order {
         installed.push(rlibs[projects[index].bundle.manifest.id.as_str()].clone());
     }
-    Ok((runtime.join(BIN).join(crate::backend::CLIENT), installed))
+    Ok((runtime.join(BIN).join(crate::CLIENT), installed))
 }

@@ -36,6 +36,8 @@ KINDS = {
            "template: what a mod on the mod API alone builds against.",
     "engine": "Every other file of the prebuilt game: what a mod with a `[native.*]` table, game internals or a "
               "registry dependency builds against as well.",
+    "tool": "`cargo-sunrise-mod` for that computer: `cargo sunrise-mod native-build` compiles native mods against "
+            "this build as the launcher does ([`native-build`](08-native-build.md)).",
     "index": "The index: the build, every other asset with its SHA-256, size, kind and codec "
              "([fields](01-release.md#sdkjson)).",
     "sums": "The SHA-256 of every file of the release.",
@@ -97,6 +99,8 @@ def kind_of(name):
     stem = name.removesuffix(".tar.xz")
     if stem in ("build-data", "api-source"):
         return stem, None, None
+    if stem.startswith("tool-"):
+        return "tool", stem.removeprefix("tool-"), None
     for kind in PER_TARGET:
         if stem.startswith(kind + "-"):
             rest = stem[len(kind) + 1:]

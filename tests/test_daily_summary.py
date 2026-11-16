@@ -537,9 +537,12 @@ class DailyWorkflowTests(unittest.TestCase):
         from tools.ci import nightly
         build = yaml.load((ROOT / ".github/workflows/prebuilt-game-build.yml").read_text(),
                           Loader=yaml.BaseLoader)["jobs"]["build"]
-        # Each matrix leg packs its three slices; the build data and surface are gathered once from them all.
+        # Each matrix leg packs its three slices, a client leg also its target's tool; the build data and surface are
+        # gathered once from them all.
+        legs = build["strategy"]["matrix"]["include"]
         names = {f"{kind}-{entry['target']}{'-server' if entry.get('server') == 'true' else ''}.tar.xz"
-                 for entry in build["strategy"]["matrix"]["include"] for kind in ("runtime", "api", "engine")}
+                 for entry in legs for kind in ("runtime", "api", "engine")}
+        names |= {f"tool-{entry['target']}.tar.xz" for entry in legs if entry.get("server") != "true"}
         self.assertEqual(names | {"api-source.tar.xz", "build-data.tar.xz", "surface.json"}, set(nightly.SDK_ARCHIVES))
         self.assertEqual(len(nightly.SDK_ARCHIVES), len(set(nightly.SDK_ARCHIVES)))
         steps = {step.get("name") or step.get("uses"): step for step in build["steps"]}
@@ -552,8 +555,8 @@ class DailyWorkflowTests(unittest.TestCase):
         # are its BESIDE_ASSETS. Producer (the legs), publish check (SDK_ARCHIVES, SDK_ASSETS) and launcher agree.
         sdk = (ROOT / "crates/sunrise-mod-package/src/sdk.rs").read_text()
         self.assertIn('format!("{}-{target}{suffix}.tar.xz", kind.name())', sdk)
-        self.assertIn('let suffix = if side == Side::Server { "-server" } else { "" };', sdk)
-        for kind in ("runtime", "api", "engine", "build-data", "api-source"):
+        self.assertIn('let suffix = if kind.per_side() && side == Side::Server {', sdk)
+        for kind in ("runtime", "api", "engine", "build-data", "api-source", "tool"):
             self.assertIn(f'=> "{kind}",', sdk)
         self.assertIn('pub const INDEX: &str = "sdk.json";', sdk)
         self.assertIn('pub const BESIDE_ASSETS: [&str; 3] = [INDEX, "SHA256SUMS", "SHA256SUMS.sig"];', sdk)

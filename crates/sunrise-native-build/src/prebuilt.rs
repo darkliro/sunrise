@@ -1,8 +1,8 @@
 //! Native mods compile and link against the pinned prebuilt game.
 //! Unsupported inputs and unavailable SDKs are refused, never rebuilt locally.
-use super::{api, dependencies, internals, Target};
-use crate::i18n::{tr, trf};
-use crate::rust_toolchain::{self, Toolchain};
+use super::{Target, api, dependencies, internals};
+use crate::host::{tr, trf};
+use crate::rust::Toolchain;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::fs;
@@ -10,11 +10,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 const IDENTITY: &str = "sunrise-prebuilt.json";
-/// Names the folder of a prebuilt game built from a developer install's checkout
-/// (`tools/prebuilt_game.py build`). Read for developer installs only: their commit has no release.
-pub(super) const DEVELOPER_SDK: &str = "SUNRISE_LAUNCHER_DEVELOPER_SDK";
 #[cfg(test)]
-pub(super) const TEMPLATE: &str = "native_main.rs.template";
+pub const TEMPLATE: &str = "native_main.rs.template";
 /// The optimization level of the `release` profile the prebuilt game is built with: the mods' code
 /// matches the game's.
 const OPT_LEVEL: &str = "opt-level=3";
@@ -26,8 +23,6 @@ pub enum Refusal {
     BuildScript { mod_id: String },
     /// A mod declares Cargo features, or asks the mod API for features of its own.
     Features { mod_id: String },
-    /// The game build's mod SDK can't be used.
-    Sdk(super::sdk_cache::Refusal),
 }
 
 impl std::fmt::Display for Refusal {
@@ -41,7 +36,6 @@ impl std::fmt::Display for Refusal {
                 "E_NATIVE_FEATURES: {mod} requests Cargo features; use the pinned SDK feature set",
                 &[("mod", mod_id)],
             ),
-            Self::Sdk(refusal) => refusal.to_string(),
         };
         f.write_str(&text)
     }
@@ -60,22 +54,23 @@ impl Refusal {
                 "{mod} can't be built here: it asks for build options Sunrise's game doesn't offer.",
                 &[("mod", mod_id)],
             ),
-            Self::Sdk(refusal) => return refusal.to_string(),
         };
         format!(
             "{why} {}",
-            tr("The problem is in the mod, not in your game. Switch it off to play, or send the log to its author.")
+            tr(
+                "The problem is in the mod, not in your game. Switch it off to play, or send the log to its author."
+            )
         )
     }
 }
 
 /// The first structural reason these projects cannot use the prebuilt game.
-pub(super) fn refusal(projects: &[api::Project<'_>]) -> Option<Refusal> {
+pub fn refusal(projects: &[api::Project<'_>]) -> Option<Refusal> {
     projects.iter().find_map(project_refusal)
 }
 
 /// Why `project` alone can't build against the prebuilt game, or `None` when it can.
-pub(super) fn project_refusal(project: &api::Project<'_>) -> Option<Refusal> {
+pub fn project_refusal(project: &api::Project<'_>) -> Option<Refusal> {
     {
         let mod_id = || project.bundle.manifest.id.clone();
         let cargo = &project.cargo;
@@ -121,30 +116,15 @@ pub(super) fn project_refusal(project: &api::Project<'_>) -> Option<Refusal> {
     }
 }
 
-/// A developer install's own prebuilt game, the folder `local` ([`DEVELOPER_SDK`]): checked to be
-/// `revision`'s for this computer and `target`, then laid out afresh as its slices by links, so
-/// the developer's folder is never changed. A release's game comes from its SDK instead
-/// ([`super::sdk_cache`]).
-pub(super) fn developer(revision: &str, target: Target, local: &Path) -> Result<Package, String> {
-    let host = rust_toolchain::host().ok_or_else(|| super::sdk_cache::Refusal::Host.to_string())?;
-    check_identity(local, revision, host.target, target)?;
-    let unit = super::sdk_cache::unit(revision, host.target, side(target));
-    let build = super::root()
-        .join("prebuilt")
-        .join(format!("{unit}.developer"));
-    let _ = fs::remove_dir_all(&build);
-    lay_out(local, &build, true)
-}
-
 /// `name`'s sum in a `sha256sum` listing.
-pub(super) fn expected_sum(listing: &str, name: &str) -> Option<String> {
+pub fn expected_sum(listing: &str, name: &str) -> Option<String> {
     listing.lines().find_map(|line| {
         let (sum, file) = line.split_once(char::is_whitespace)?;
         (file.trim_start().trim_start_matches('*') == name).then(|| sum.to_ascii_lowercase())
     })
 }
 
-fn side(target: Target) -> sunrise_mod_package::sdk::Side {
+pub fn side(target: Target) -> sunrise_mod_package::sdk::Side {
     match target {
         Target::Client => sunrise_mod_package::sdk::Side::Client,
         Target::Server => sunrise_mod_package::sdk::Side::Server,
@@ -152,18 +132,18 @@ fn side(target: Target) -> sunrise_mod_package::sdk::Side {
 }
 
 #[derive(serde::Deserialize)]
-pub(super) struct Identity {
+pub struct Identity {
     commit: String,
     rustc: String,
     target: String,
     side: String,
-    pub(super) link_args: Vec<String>,
+    pub link_args: Vec<String>,
     #[serde(default)]
-    pub(super) registry_lock: Option<String>,
+    pub registry_lock: Option<String>,
     #[serde(default)]
-    pub(super) registry_patches: Option<toml::Table>,
+    pub registry_patches: Option<toml::Table>,
     #[serde(default)]
-    pub(super) native_links: Option<Vec<super::registry_inventory::NativeLink>>,
+    pub native_links: Option<Vec<super::registry_inventory::NativeLink>>,
     #[serde(default)]
     facade_crates: std::collections::BTreeSet<String>,
     /// The game crate's features the SDK was built with: a patched function copied out of its
@@ -172,28 +152,29 @@ pub(super) struct Identity {
     game_features: Vec<String>,
     /// Which package files the `runtime` and `api` slices hold; every other file is the `engine`'s.
     #[serde(default)]
-    pub(super) slices: Option<Slices>,
+    pub slices: Option<Slices>,
 }
 
 #[derive(serde::Deserialize)]
-pub(super) struct Slices {
-    pub(super) runtime: Vec<String>,
-    pub(super) api: Vec<String>,
+pub struct Slices {
+    pub runtime: Vec<String>,
+    pub api: Vec<String>,
 }
 
 /// The prebuilt game as the launcher keeps one build of it: each of the SDK's three compiled
 /// slices in a folder of its own under the build's folder (`runtime`, `api`, `engine`), each
 /// unpacked on its own. The API route reads `runtime` and `api`; the other routes read all three.
-#[derive(Clone, Debug, PartialEq)]
-pub(super) struct Package {
-    pub(super) runtime: PathBuf,
-    pub(super) api: PathBuf,
-    pub(super) engine: PathBuf,
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Package {
+    pub runtime: PathBuf,
+    pub api: PathBuf,
+    pub engine: PathBuf,
 }
 
 impl Package {
     /// The slices under the build folder `build`.
-    pub(super) fn at(build: &Path) -> Self {
+    pub fn at(build: &Path) -> Self {
         Self {
             runtime: build.join("runtime"),
             api: build.join("api"),
@@ -203,7 +184,7 @@ impl Package {
 
     /// The three slices as one folder at `into`, linked file by file (copied where a link can't
     /// be made): the folder the engine and registry routes build against.
-    pub(super) fn whole(&self, into: &Path) -> Result<PathBuf, String> {
+    pub fn whole(&self, into: &Path) -> Result<PathBuf, String> {
         let _ = fs::remove_dir_all(into);
         for slice in [&self.runtime, &self.api, &self.engine] {
             link_tree(slice, slice, into)?;
@@ -239,7 +220,7 @@ fn link_tree(slice: &Path, dir: &Path, into: &Path) -> Result<(), String> {
 /// Lay the whole prebuilt game in `whole` out as its three slices under `build` ([`Package`]),
 /// as its identity's `slices` lists them (the `runtime` and `api` files; every other file is the
 /// `engine`'s), moving or linking each file; a listed file that isn't there is refused by name.
-fn lay_out(whole: &Path, build: &Path, link: bool) -> Result<Package, String> {
+pub fn lay_out(whole: &Path, build: &Path, link: bool) -> Result<Package, String> {
     let sdk = identity(whole)?;
     let slices = sdk.slices()?;
     let package = Package::at(build);
@@ -316,20 +297,20 @@ fn every_file(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
 
 impl Identity {
     /// The commit the SDK was built from: the source a patched function is copied out of.
-    pub(super) fn commit(&self) -> &str {
+    pub fn commit(&self) -> &str {
         &self.commit
     }
 
-    pub(super) fn facade_crates(&self) -> impl Iterator<Item = &str> {
+    pub fn facade_crates(&self) -> impl Iterator<Item = &str> {
         self.facade_crates.iter().map(String::as_str)
     }
 
-    pub(super) fn game_features(&self) -> &[String] {
+    pub fn game_features(&self) -> &[String] {
         &self.game_features
     }
 
     /// Which package files the `runtime` and `api` slices hold.
-    pub(super) fn slices(&self) -> Result<&Slices, String> {
+    pub fn slices(&self) -> Result<&Slices, String> {
         self.slices.as_ref().ok_or_else(|| {
             tr("This prebuilt game has no slices. Update Sunrise and rebuild the mods against this game.")
                 .to_string()
@@ -337,7 +318,7 @@ impl Identity {
     }
 }
 
-pub(super) fn identity(dir: &Path) -> Result<Identity, String> {
+pub fn identity(dir: &Path) -> Result<Identity, String> {
     let path = dir.join(IDENTITY);
     let text = fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
     // Formats up to 5 named the number `format_version` (before 5: nothing, so 0).
@@ -372,9 +353,14 @@ pub(super) fn identity(dir: &Path) -> Result<Identity, String> {
 
 /// Whether the unpacked game in `dir` is the one asked for: built from `revision` for `host` and
 /// `target`'s side by the launcher's Rust, whose compiler is the only one that reads its metadata.
-fn check_identity(dir: &Path, revision: &str, host: &str, target: Target) -> Result<(), String> {
+pub fn check_identity(
+    dir: &Path,
+    revision: &str,
+    host: &str,
+    target: Target,
+) -> Result<(), String> {
     let found = identity(dir)?;
-    let release = format!("release: {}", rust_toolchain::VERSION);
+    let release = format!("release: {}", crate::rust::VERSION);
     let matches = found.commit == revision
         && found.target == host
         && found.side == target.name()
@@ -396,7 +382,7 @@ fn check_identity(dir: &Path, revision: &str, host: &str, target: Target) -> Res
 }
 
 /// The library file a crate named `krate` left in `deps`: its metadata, or its own dylib.
-pub(super) fn library(deps: &Path, krate: &str) -> Result<PathBuf, String> {
+pub fn library(deps: &Path, krate: &str) -> Result<PathBuf, String> {
     // A cached target can still contain metadata from an earlier static build. Prefer the dylib:
     // callers installing runtime libraries need its code, not a stale metadata-only artifact.
     let dylib = ["so", "dll", "dylib"]
@@ -431,7 +417,7 @@ pub(super) fn library(deps: &Path, krate: &str) -> Result<PathBuf, String> {
 /// Both compiler routes link the same SDK-owned executable template, and the patch library, so `sunrise_mod_host`
 /// is always an extern: the game crates it carries (`sunrise_client` and its closure, metadata only in `deps/`) are
 /// code only inside that dylib.
-pub(super) fn wrapper_externs(deps: &Path) -> Result<BTreeMap<String, PathBuf>, String> {
+pub fn wrapper_externs(deps: &Path) -> Result<BTreeMap<String, PathBuf>, String> {
     let mut externs = BTreeMap::new();
     for name in [
         "sunrise_client",
@@ -458,9 +444,9 @@ fn facade_refused(krate: &str) -> String {
 
 /// What the patch library's source ends with: edition 2024 loads an `--extern` only when the source names it, and
 /// the dylib links the game's crates only through `sunrise_mod_host`.
-pub(super) const PATCH_HOST_LINK: &str = "\nextern crate sunrise_mod_host as _;\n";
+pub const PATCH_HOST_LINK: &str = "\nextern crate sunrise_mod_host as _;\n";
 
-pub(super) fn facade_library(deps: &Path, krate: &str, sdk: &Identity) -> Result<PathBuf, String> {
+pub fn facade_library(deps: &Path, krate: &str, sdk: &Identity) -> Result<PathBuf, String> {
     if !sdk.facade_crates.contains(krate) {
         return Err(facade_refused(krate));
     }
@@ -468,7 +454,7 @@ pub(super) fn facade_library(deps: &Path, krate: &str, sdk: &Identity) -> Result
 }
 
 /// Rust's standard library as a dynamic library: what the prebuilt game and its executable load.
-fn standard_library(rust: &Toolchain) -> Result<PathBuf, String> {
+fn standard_library(rust: &dyn Toolchain) -> Result<PathBuf, String> {
     let dir = rust
         .target_libdir()
         .ok_or("no Rust standard library for this computer")?;
@@ -490,7 +476,7 @@ fn standard_library(rust: &Toolchain) -> Result<PathBuf, String> {
 /// native libraries the game's build scripts link (`native/`: the `windows` crates' import
 /// libraries).
 fn rustc(
-    rust: &Toolchain,
+    rust: &dyn Toolchain,
     game: &Path,
     out: &Path,
     edition: &str,
@@ -510,9 +496,9 @@ fn rustc(
 }
 
 /// rustc with the prebuilt game's settings and only `search` as dependency search paths.
-pub(super) fn rustc_with(rust: &Toolchain, search: &[&Path], edition: &str) -> Command {
+pub fn rustc_with(rust: &dyn Toolchain, search: &[&Path], edition: &str) -> Command {
     let mut cmd = rust.command(&rust.rustc());
-    rust_toolchain::low_priority(&mut cmd);
+    crate::rust::low_priority(&mut cmd);
     cmd.args([
         "--edition",
         edition,
@@ -538,7 +524,7 @@ pub(super) fn rustc_with(rust: &Toolchain, search: &[&Path], edition: &str) -> C
 /// How an instance's native mods are built against the prebuilt game: chosen once, from the whole
 /// set of mods, and never changed after a failure (SDK design §1).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Route {
+pub enum Route {
     /// Every mod is API-only: build its own dylib from the package's API metadata.
     /// The engine archive is never read.
     Api,
@@ -552,7 +538,7 @@ pub(super) enum Route {
 
 impl Route {
     /// The route of the set `projects`: the strongest one any of its mods needs.
-    pub(super) fn of(projects: &[api::Project<'_>]) -> Self {
+    pub fn of(projects: &[api::Project<'_>]) -> Self {
         if projects.iter().any(registry_dependency) {
             Self::Registry
         } else if projects
@@ -567,7 +553,7 @@ impl Route {
 
     /// The route's name in the SDK's input list (`sdk.json`'s `inputs.routes`): which slices
     /// it fetches.
-    pub(super) fn inputs(self) -> &'static str {
+    pub fn inputs(self) -> &'static str {
         match self {
             Self::Api => "api",
             Self::Engine | Self::Registry => "engine",
@@ -575,7 +561,7 @@ impl Route {
     }
 
     /// The route as the build record (`native-mods.json`) names it.
-    pub(super) fn name(self) -> &'static str {
+    pub fn name(self) -> &'static str {
         match self {
             Self::Api => "prebuilt-api",
             Self::Engine | Self::Registry => "prebuilt",
@@ -586,7 +572,7 @@ impl Route {
 /// How `project` reaches into the game's own code, which ties it to exactly the build it was made
 /// for: a `[native]` table row (named by its table), or game internals (`internals`); `None` for
 /// a mod on the mod API alone.
-pub(super) fn changes_game(project: &api::Project<'_>) -> Option<&'static str> {
+pub fn changes_game(project: &api::Project<'_>) -> Option<&'static str> {
     let manifest = &project.bundle.manifest;
     // Every row kind by name: a new one does not compile until it is routed here.
     if let Some(native) = &manifest.native {
@@ -642,8 +628,8 @@ fn registry_dependency(project: &api::Project<'_>) -> bool {
 // Unlike the source workspace, this route invokes rustc with only selected --extern
 // libraries; it does not resolve or compile arbitrary transitive Cargo dependencies.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn compile(
-    rust: &Toolchain,
+pub fn compile(
+    rust: &dyn Toolchain,
     package: &Package,
     builds: &Path,
     mods: &Path,
@@ -681,7 +667,7 @@ pub(super) fn compile(
             super::api_route::compile(rust, package, out, projects, declared, resolution, on_mod);
         // Stamped after the route has made its folder again, failed or not.
         if out.exists() {
-            crate::storage::mark_used(out).map_err(super::cache_error)?;
+            crate::host::mark_used(out)?;
         }
         return built;
     }
@@ -690,7 +676,7 @@ pub(super) fn compile(
         let kept = builds.join(&key);
         // Stamped before it fills, so a build that fails still leaves an aged unit.
         fs::create_dir_all(&kept).map_err(|e| e.to_string())?;
-        crate::storage::mark_used(&kept).map_err(super::cache_error)?;
+        crate::host::mark_used(&kept)?;
         let stage = kept.join(format!("stage-{}", short_hash(&mods_key(mods)?)));
         let built = super::registry_compile::compile(
             rust,
@@ -706,7 +692,7 @@ pub(super) fn compile(
             },
         )?;
         // The Storage page's Build files row ages this unit by its last use.
-        crate::storage::mark_used(&kept).map_err(super::cache_error)?;
+        crate::host::mark_used(&kept)?;
         return Ok(built);
     }
     let out = &builds.join(format!("rustc-{key}"));
@@ -718,7 +704,7 @@ pub(super) fn compile(
         catalog.log_mixins(&project.bundle.manifest)?;
     }
     fs::create_dir_all(out).map_err(|e| e.to_string())?;
-    crate::storage::mark_used(out).map_err(super::cache_error)?;
+    crate::host::mark_used(out)?;
     let deps = game.join("deps");
     let sdk = identity(game)?;
     let mut libraries = std::collections::HashMap::new();
@@ -852,24 +838,24 @@ pub(super) fn compile(
         super::library_record::stamp(&library, sdk.commit(), "sunrise_patch", "0", true)?;
         installed.push(library);
     }
-    Ok((
-        package.runtime.join("bin").join(crate::backend::CLIENT),
-        installed,
-    ))
+    Ok((package.runtime.join("bin").join(crate::CLIENT), installed))
 }
 
-pub(super) fn refuse_closure_rlib(id: &str, name: &str, path: &Path) -> Result<(), String> {
+pub fn refuse_closure_rlib(id: &str, name: &str, path: &Path) -> Result<(), String> {
     if matches!(
         name,
         "mod_api" | "mod_vocab" | "mod_points" | "sunrise_mod_runtime" | "sunrise_core"
     ) && path.extension().is_some_and(|ext| ext == "rlib")
     {
-        return Err(trf("Native mod {mod} links API closure crate {crate} as an rlib. Rebuild the SDK with a shared API closure.", &[("mod", id), ("crate", name)]));
+        return Err(trf(
+            "Native mod {mod} links API closure crate {crate} as an rlib. Rebuild the SDK with a shared API closure.",
+            &[("mod", id), ("crate", name)],
+        ));
     }
     Ok(())
 }
 
-pub(super) fn dylib_name(krate: &str) -> String {
+pub fn dylib_name(krate: &str) -> String {
     format!(
         "{}{krate}{}",
         std::env::consts::DLL_PREFIX,
@@ -877,7 +863,7 @@ pub(super) fn dylib_name(krate: &str) -> String {
     )
 }
 
-pub(super) fn library_entry(
+pub fn library_entry(
     template: &str,
     mods: &[&sunrise_mod_package::Manifest],
     catalog: &internals::Catalog,
@@ -890,7 +876,7 @@ pub(super) fn library_entry(
         .replace("mod_0::", "crate::")
         .replace(
             "/* NATIVE_BUILD */",
-            &format!("{build} {id} {version} {}", crate::rust_toolchain::VERSION),
+            &format!("{build} {id} {version} {}", crate::rust::VERSION),
         )
         .replace(
             "/* MOD_REDIRECTS */",
@@ -905,7 +891,7 @@ pub(super) fn library_entry(
 /// the route's search paths), its game packages from `library` and its installed mod dependencies
 /// from `rlibs`. Returns the rlib and the crate's name.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn compile_mod<'a>(
+pub fn compile_mod<'a>(
     project: &api::Project<'_>,
     declared: &[dependencies::Dependency],
     out: &Path,
@@ -1006,7 +992,10 @@ fn check_library_name(
     id: &str,
 ) -> Result<(), String> {
     if !names.insert(name.to_ascii_lowercase()) {
-        return Err(trf("Native mod {mod} uses reserved or duplicate library file {file}. Choose a unique Cargo library name.", &[("mod", id), ("file", name)]));
+        return Err(trf(
+            "Native mod {mod} uses reserved or duplicate library file {file}. Choose a unique Cargo library name.",
+            &[("mod", id), ("file", name)],
+        ));
     }
     Ok(())
 }
@@ -1014,12 +1003,15 @@ fn check_library_name(
 /// Refuses mod `id` when its crate root (`source`) forbids unsafe code: the generated library
 /// entry appended to it exports `#[unsafe(no_mangle)]` functions, and `forbid` can't be lifted for
 /// one module. A root this parser can't read is left to rustc, which reports it in its own words.
-pub(super) fn check_entry_root(source: &str, id: &str) -> Result<(), String> {
+pub fn check_entry_root(source: &str, id: &str) -> Result<(), String> {
     let Ok(file) = syn::parse_file(source) else {
         return Ok(());
     };
     if file.attrs.iter().any(|attr| forbids_unsafe(&attr.meta)) {
-        return Err(trf("{mod}: its crate root forbids unsafe code, which the launcher's generated library entry needs; use #![deny(unsafe_code)] instead", &[("mod", id)]));
+        return Err(trf(
+            "{mod}: its crate root forbids unsafe code, which the launcher's generated library entry needs; use #![deny(unsafe_code)] instead",
+            &[("mod", id)],
+        ));
     }
     Ok(())
 }
@@ -1058,12 +1050,12 @@ const KEPT_BUILD_FLAGS: u32 = 2;
 /// The folder a registry build's cargo output is kept in, under `native/prebuilt-build`: one per
 /// game build, Rust toolchain and launcher settings ([`KEPT_BUILD_FLAGS`]). Inside one, cargo's
 /// own fingerprints decide what to rebuild.
-fn kept_build(rust: &Toolchain, package: &Package) -> Result<String, String> {
+fn kept_build(rust: &dyn Toolchain, package: &Package) -> Result<String, String> {
     let sdk = identity(&package.runtime)?;
     let mut hasher = Sha256::new();
     hasher.update(KEPT_BUILD_FLAGS.to_le_bytes());
-    hasher.update(rust_toolchain::VERSION.as_bytes());
-    hasher.update(rust.host.target.as_bytes());
+    hasher.update(crate::rust::VERSION.as_bytes());
+    hasher.update(rust.target().as_bytes());
     // The package's files reach rustc and the linker through the compiler plan, which cargo
     // doesn't fingerprint: a package any of whose files differ is another key. Each file is known
     // by its slice, path, length and modified time, read from the slices themselves (the whole
@@ -1141,8 +1133,8 @@ fn short_hash(hex: &str) -> &str {
 /// its runtime slice), the standard library and, on Windows, the MinGW runtime the GNU DLLs import.
 /// The package's own record is the list, so a library the game gains ships without a launcher
 /// change.
-pub(super) fn runtime_libraries(
-    rust: &Toolchain,
+pub fn runtime_libraries(
+    rust: &dyn Toolchain,
     sdk: &Identity,
     game: &Path,
 ) -> Result<Vec<PathBuf>, String> {
@@ -1162,7 +1154,7 @@ pub(super) fn runtime_libraries(
         return Err(tr("The prebuilt game records no runtime libraries.").to_string());
     }
     runtime.push(standard_library(rust)?);
-    if rust.host.target == rust_toolchain::WINDOWS_X64_TARGET {
+    if rust.target() == crate::rust::WINDOWS_X64_TARGET {
         // The SDK's GNU DLLs import libgcc, which in turn imports libwinpthread.
         // The compiler finds both through PATH during linking. The game loads them beside its executable.
         let mingw = rust.mingw_bin();
@@ -1186,9 +1178,11 @@ mod tests {
     fn library_names_are_case_insensitive_and_entry_lints_are_checked() {
         let mut names = std::collections::HashSet::new();
         super::check_library_name(&mut names, "Example.dll", "one").unwrap();
-        assert!(super::check_library_name(&mut names, "example.dll", "two")
-            .unwrap_err()
-            .contains("two"));
+        assert!(
+            super::check_library_name(&mut names, "example.dll", "two")
+                .unwrap_err()
+                .contains("two")
+        );
         assert!(super::check_entry_root("#![deny(unsafe_code)]", "safe").is_ok());
         assert!(
             super::check_entry_root("#![forbid(unsafe_code, unused)]", "safe")
@@ -1234,19 +1228,21 @@ mod tests {
         assert!(message.contains("example"), "{message}");
         assert!(message.contains("mod_points"), "{message}");
         assert!(message.contains("rlib"), "{message}");
-        assert!(super::refuse_closure_rlib(
-            "example",
-            "mod_points",
-            std::path::Path::new("libmod_points.rmeta")
-        )
-        .is_ok());
+        assert!(
+            super::refuse_closure_rlib(
+                "example",
+                "mod_points",
+                std::path::Path::new("libmod_points.rmeta")
+            )
+            .is_ok()
+        );
     }
 
     use super::*;
 
     #[test]
     fn the_route_is_chosen_once_from_the_whole_set() {
-        use sunrise_mod_package::manifest::{loops, mixin, Internal, Module};
+        use sunrise_mod_package::manifest::{Internal, Module, loops, mixin};
         let folder = super::super::tests::dir("prebuilt-route");
         let write = |name: &str, dependencies: &str| {
             let dir = folder.join(name);
@@ -1264,7 +1260,10 @@ mod tests {
             "api_only",
             "sunrise-mod-api={path='.sunrise/sdk/api/crates/sunrise-mod-api'}\nsunrise-mod-points={path='.sunrise/sdk/api/crates/sunrise-mod-points'}",
         );
-        let facade = write("facade", "sunrise-mod-api={path='.sunrise/sdk/api/crates/sunrise-mod-api'}\nsunrise-internals={path='.sunrise/sdk/api/crates/sunrise-internals'}");
+        let facade = write(
+            "facade",
+            "sunrise-mod-api={path='.sunrise/sdk/api/crates/sunrise-mod-api'}\nsunrise-internals={path='.sunrise/sdk/api/crates/sunrise-internals'}",
+        );
         let registry = write(
             "registry",
             "sunrise-mod-api={path='.sunrise/sdk/api/crates/sunrise-mod-api'}\nserde='1'",
@@ -1420,23 +1419,22 @@ mod tests {
             "mod_points.dylib",
         ]
         .map(|name| game.join("deps").join(name));
-        for host in rust_toolchain::hosts() {
-            let rust = Toolchain {
-                dir: scratch.path().join(host.target),
-                host,
-            };
+        for target in crate::rust::tests::HOSTS {
+            let rust = crate::rust::tests::unpacked(scratch.path().join(target), target);
             let std = rust.target_libdir().unwrap().join("std-test.dll");
             fs::create_dir_all(std.parent().unwrap()).unwrap();
             fs::write(&std, b"").unwrap();
             let mut expected = recorded.to_vec();
             expected.push(std);
-            if host.target == rust_toolchain::WINDOWS_X64_TARGET {
+            if target == crate::rust::WINDOWS_X64_TARGET {
                 let bin = rust.mingw_bin();
                 fs::create_dir_all(&bin).unwrap();
                 for name in ["libgcc_s_seh-1.dll", "libwinpthread-1.dll"] {
-                    assert!(runtime_libraries(&rust, &sdk, game)
-                        .unwrap_err()
-                        .contains(name));
+                    assert!(
+                        runtime_libraries(&rust, &sdk, game)
+                            .unwrap_err()
+                            .contains(name)
+                    );
                     let library = bin.join(name);
                     fs::write(&library, b"").unwrap();
                     expected.push(library);
@@ -1448,10 +1446,7 @@ mod tests {
             "commit": "test", "rustc": "test", "target": "test", "side": "client", "link_args": [],
         }))
         .unwrap();
-        let rust = Toolchain {
-            dir: scratch.path().to_owned(),
-            host: &rust_toolchain::hosts()[0],
-        };
+        let rust = crate::rust::tests::unpacked(scratch.path(), crate::rust::tests::HOSTS[0]);
         assert!(runtime_libraries(&rust, &unsliced, game).is_err());
     }
 
@@ -1480,24 +1475,15 @@ mod tests {
             fs::write(dir.join(IDENTITY), identity.to_string()).unwrap();
             check_identity(&dir, "abc123", "x86_64-pc-windows-gnu", Target::Client)
         };
-        let rustc = format!("rustc x\nrelease: {}\nhost: y", rust_toolchain::VERSION);
+        let rustc = format!("rustc x\nrelease: {}\nhost: y", crate::rust::VERSION);
         let host = "x86_64-pc-windows-gnu";
         assert_eq!(check("abc123", &rustc, host, "client"), Ok(()));
         assert!(check("abc124", &rustc, host, "client").is_err());
         assert!(check("abc123", &rustc, "x86_64-unknown-linux-gnu", "client").is_err());
         assert!(check("abc123", &rustc, host, "server").is_err());
         assert!(check("abc123", "rustc x\nrelease: 0.0.1", host, "client").is_err());
-        let longer = format!("release: {}.1", rust_toolchain::VERSION);
+        let longer = format!("release: {}.1", crate::rust::VERSION);
         assert!(check("abc123", &longer, host, "client").is_err());
-        // A developer's own prebuilt game is used where it is, and only when it is that build.
-        if let Some(this) = rust_toolchain::host() {
-            assert_eq!(
-                check("abc123", &rustc, this.target, "client").is_ok(),
-                this.target == host
-            );
-            // Another build of a developer's own game is refused before anything is laid out.
-            assert!(developer("abc124", Target::Client, &dir).is_err());
-        }
         fs::remove_file(dir.join(IDENTITY)).unwrap();
         assert!(check_identity(&dir, "abc123", host, Target::Client).is_err());
         fs::remove_dir_all(dir).unwrap();
@@ -1578,11 +1564,15 @@ mod tests {
             None
         );
         assert_eq!(
-            refusal_of("build=false\n[dependencies]\nsunrise-mod-api={path='.sunrise/sdk/api/crates/sunrise-mod-api'}"),
+            refusal_of(
+                "build=false\n[dependencies]\nsunrise-mod-api={path='.sunrise/sdk/api/crates/sunrise-mod-api'}"
+            ),
             None
         );
         assert_eq!(
-            refusal_of("[dependencies.api]\npackage='sunrise-mod-api'\npath='.sunrise/sdk/api/crates/sunrise-mod-api'"),
+            refusal_of(
+                "[dependencies.api]\npackage='sunrise-mod-api'\npath='.sunrise/sdk/api/crates/sunrise-mod-api'"
+            ),
             None
         );
     }

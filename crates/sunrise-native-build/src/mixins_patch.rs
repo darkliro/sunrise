@@ -11,9 +11,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use sha2::{Digest, Sha256};
 use sunrise_mod_package::mixins_tool::{self, PATCH, PATCH_NAME};
 
-use super::{root, run, Step, MIXINS_REV};
-use crate::i18n::{tr, trf};
-use crate::rust_toolchain::{self, Toolchain};
+use super::{MIXINS_REV, root, run};
+use crate::host::{tr, trf};
+use crate::rust::Toolchain;
 
 const SUMS: &str = "SHA256SUMS";
 /// The archive's largest plausible size, packed or unpacked: a corrupt or hostile one stops there.
@@ -23,7 +23,7 @@ const SUMS_LIMIT: u64 = 1 << 20;
 /// What an unpacking launcher's own folder inside the tool's folder starts with.
 const STAGING: &str = ".prebuilt-";
 /// Set by `native-build --mixins-from-source`: the prebuilt tool is not looked for.
-pub(super) static FROM_SOURCE: AtomicBool = AtomicBool::new(false);
+pub static FROM_SOURCE: AtomicBool = AtomicBool::new(false);
 
 /// One file of the tool's release; `None` when the release has no such file.
 type Get<'a> = &'a dyn Fn(&str) -> Result<Option<Box<dyn Read>>, String>;
@@ -35,7 +35,7 @@ fn executable(dir: &Path) -> PathBuf {
 }
 
 /// The patched tool at [`MIXINS_REV`], fetched once per pin and patch.
-pub(super) fn tool(rust: &Toolchain, progress: &impl Fn(Step)) -> Result<PathBuf, String> {
+pub fn tool(rust: &dyn Toolchain, on_fetch: &impl Fn()) -> Result<PathBuf, String> {
     // Inside the pin's own tool folder, so storage cleanup counts it with the pin.
     let dir = root()
         .join("tools")
@@ -45,10 +45,10 @@ pub(super) fn tool(rust: &Toolchain, progress: &impl Fn(Step)) -> Result<PathBuf
     if bin.is_file() {
         return Ok(bin);
     }
-    progress(Step::Tool);
+    on_fetch();
     let started = std::time::Instant::now();
     let seconds = || format!("{:.1}", started.elapsed().as_secs_f64());
-    let target = rust.host.target;
+    let target = rust.target();
     let release = format!(
         "{}/{}",
         sunrise_addresses::MIXINS_TOOL_RELEASES,
@@ -56,8 +56,8 @@ pub(super) fn tool(rust: &Toolchain, progress: &impl Fn(Step)) -> Result<PathBuf
     );
     let get = |name: &str| {
         Ok(
-            crate::backend::get_unless_missing(&format!("{release}/{name}"))?
-                .map(|response| Box::new(response.into_reader()) as Box<dyn Read>),
+            crate::host::get_unless_missing(&format!("{release}/{name}"))?
+                .map(|body| body as Box<dyn Read>),
         )
     };
     let from_source = FROM_SOURCE.load(Ordering::Relaxed);
@@ -115,17 +115,17 @@ fn install(
     if executable(dir).is_file() {
         return Ok(Got::Cached);
     }
-    if let Some(get) = release {
-        if prebuilt(dir, target, get)? {
-            return Ok(Got::Downloaded);
-        }
+    if let Some(get) = release
+        && prebuilt(dir, target, get)?
+    {
+        return Ok(Got::Downloaded);
     }
     build()?;
     Ok(Got::Built)
 }
 
 /// The tool built from its pinned source with the carried patch, into `dir`.
-fn build(rust: &Toolchain, dir: &Path) -> Result<(), String> {
+fn build(rust: &dyn Toolchain, dir: &Path) -> Result<(), String> {
     let partial = dir.join(".source");
     let top = super::unpack_archive(
         &format!("{}/{MIXINS_REV}", sunrise_addresses::HORIZON_MIXINS_SOURCE),
@@ -136,7 +136,7 @@ fn build(rust: &Toolchain, dir: &Path) -> Result<(), String> {
         format!("E_MIXINS_PATCH: {PATCH_NAME} does not apply to horizon-mixins {MIXINS_REV}: {why}")
     })?;
     let mut cmd = rust.command(&rust.cargo());
-    rust_toolchain::low_priority(&mut cmd);
+    crate::rust::low_priority(&mut cmd);
     rust.configure_cargo(&mut cmd);
     cmd.args(["install", "--locked", "--path"])
         .arg(top.join("crates/horizon-mixins-cli"))

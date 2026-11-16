@@ -34,7 +34,7 @@ struct Diagnostic {
     rendered: Option<String>,
 }
 
-pub(super) struct Outputs {
+pub struct Outputs {
     scripts: Vec<(String, Vec<String>)>,
     libraries: Vec<(String, Vec<PathBuf>)>,
     pub errors: Vec<String>,
@@ -87,8 +87,9 @@ impl Outputs {
         &self,
         runtime: &BTreeSet<String>,
         target: &Path,
+        cargo_home: &Path,
     ) -> Result<Vec<PathBuf>, String> {
-        let roots = [target.to_path_buf(), crate::rust_toolchain::cargo_home()]
+        let roots = [target.to_path_buf(), cargo_home.to_path_buf()]
             .into_iter()
             .filter(|root| root.exists())
             .map(|root| root.canonicalize().map_err(|e| e.to_string()))
@@ -190,7 +191,11 @@ mod tests {
         .unwrap();
         let files = Outputs::read(&messages)
             .unwrap()
-            .runtime(&BTreeSet::from(["runtime".into()]), &target)
+            .runtime(
+                &BTreeSet::from(["runtime".into()]),
+                &target,
+                &target.join("cargo-home"),
+            )
             .unwrap();
         assert!(files.contains(&library));
         assert!(!files.contains(&host));
@@ -213,22 +218,28 @@ mod tests {
             errors: vec![],
         };
         let runtime = BTreeSet::from(["runtime".into()]);
-        assert!(outputs
-            .runtime(&runtime, &target)
-            .unwrap_err()
-            .contains("Conflicting"));
+        assert!(
+            outputs
+                .runtime(&runtime, &target, &target.join("cargo-home"))
+                .unwrap_err()
+                .contains("Conflicting")
+        );
         let outside = dir.path().join("outside.so");
         fs::write(&outside, b"outside").unwrap();
         outputs.libraries[0].1 = vec![outside];
-        assert!(outputs
-            .runtime(&runtime, &target)
-            .unwrap_err()
-            .contains("escapes"));
+        assert!(
+            outputs
+                .runtime(&runtime, &target, &target.join("cargo-home"))
+                .unwrap_err()
+                .contains("escapes")
+        );
         outputs.libraries.clear();
         outputs.scripts = vec![("runtime".into(), vec!["native=relative".into()])];
-        assert!(outputs
-            .runtime(&runtime, &target)
-            .unwrap_err()
-            .contains("relative"));
+        assert!(
+            outputs
+                .runtime(&runtime, &target, &target.join("cargo-home"))
+                .unwrap_err()
+                .contains("relative")
+        );
     }
 }

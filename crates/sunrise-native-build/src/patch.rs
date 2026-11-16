@@ -5,9 +5,9 @@
 //! against the prebuilt game and the mods, and the generated `main` installs each copy through
 //! its point's replacement slot. What can't take this route is refused by name; nothing here
 //! falls back to compiling the game.
-use super::{api, prebuilt::Identity, Bundle};
-use crate::i18n::trf;
-use crate::rust_toolchain::Toolchain;
+use super::{Bundle, api, prebuilt::Identity};
+use crate::host::trf;
+use crate::rust::Toolchain;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -17,11 +17,11 @@ use sunrise_platform::mod_build::api_gen;
 /// `--extern` use it. It is not `sunrise_patch`, the name of the library built from them: a library and a crate
 /// it links with one crate name are indistinguishable to rustc (E0519), and a registry workspace refuses two
 /// packages of one name.
-pub(super) const CRATE: &str = "sunrise_patched";
+pub const CRATE: &str = "sunrise_patched";
 
 /// The compiled patch crates, `(crate name, rlib)`, and the installation result expressions the
 /// generated `main` installs.
-pub(super) struct Patch {
+pub struct Patch {
     pub rlibs: Vec<(String, PathBuf)>,
     pub installs: Vec<String>,
 }
@@ -119,7 +119,7 @@ fn extras(bundles: &[&Bundle]) -> Result<api_gen::patch::Extras, String> {
 
 /// The patched sources of `projects`' `[[native.mixin]]` rows, supports modules and bridges,
 /// ready to compile: one crate folder per name under `dir`.
-pub(super) struct Prepared<'a> {
+pub struct Prepared<'a> {
     pub dir: PathBuf,
     pub names: Vec<String>,
     pub installs: Vec<String>,
@@ -136,8 +136,8 @@ pub(super) struct Prepared<'a> {
 /// `None` when no mod has one. `rlibs` and `crates` are the compiled mods and their crate names,
 /// which helpers may call.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn build(
-    rust: &Toolchain,
+pub fn build(
+    rust: &dyn Toolchain,
     game: &Path,
     out: &Path,
     projects: &[api::Project<'_>],
@@ -159,7 +159,7 @@ pub(super) fn build(
         for bundle in &prepared.bundles {
             hash.update(
                 super::source_digest(bundle)
-                    .ok_or(crate::i18n::tr("Could not hash patch inputs"))?,
+                    .ok_or(crate::host::tr("Could not hash patch inputs"))?,
             );
             hash.update(fs::read(&rlibs[bundle.manifest.id.as_str()]).map_err(|e| e.to_string())?);
         }
@@ -212,7 +212,7 @@ pub(super) fn build(
 }
 
 /// The SDK libraries a patch crate compiles against: the game crate and the facade crates.
-pub(super) fn sdk_externs(game: &Path, sdk: &Identity) -> Result<Vec<(String, PathBuf)>, String> {
+pub fn sdk_externs(game: &Path, sdk: &Identity) -> Result<Vec<(String, PathBuf)>, String> {
     let deps = game.join("deps");
     let mut externs = vec![(
         "sunrise_client".to_owned(),
@@ -231,15 +231,23 @@ pub(super) fn sdk_externs(game: &Path, sdk: &Identity) -> Result<Vec<(String, Pa
 
 impl Prepared<'_> {
     /// The build log's line for this mixin build.
-    pub(super) fn log(&self) -> Result<(), String> {
+    pub fn log(&self) -> Result<(), String> {
         super::append_log(&trf(
             "Function replacement: {count} functions patched by {rows} mixins, without rebuilding the game (copy {copy} ms, horizon-mixins {tool} ms, compile {compile} ms, total {total} ms)",
             &[
                 ("count", &self.count.to_string()),
                 ("rows", &self.rows.to_string()),
                 ("copy", &self.copied.as_millis().to_string()),
-                ("tool", &(self.applied - self.copied).as_millis().to_string()),
-                ("compile", &(self.started.elapsed() - self.applied).as_millis().to_string()),
+                (
+                    "tool",
+                    &(self.applied - self.copied).as_millis().to_string(),
+                ),
+                (
+                    "compile",
+                    &(self.started.elapsed() - self.applied)
+                        .as_millis()
+                        .to_string(),
+                ),
                 ("total", &self.started.elapsed().as_millis().to_string()),
             ],
         ))
@@ -382,8 +390,8 @@ fn function_index(game: &Path, commit: &str) -> Result<api_gen::functions::Funct
 
 /// Copies, generates and transforms the patch crates for `projects` into `out`, without
 /// compiling them; `None` when no mod has a mixin, module, bridge or loop.
-pub(super) fn prepare<'a>(
-    rust: &Toolchain,
+pub fn prepare<'a>(
+    rust: &dyn Toolchain,
     game: &Path,
     out: &Path,
     projects: &[api::Project<'a>],
@@ -426,7 +434,7 @@ pub(super) fn prepare<'a>(
     let tool = if rows.is_empty() {
         None
     } else {
-        Some(super::mixins_patch::tool(rust, &|_| {})?)
+        Some(super::mixins_patch::tool(rust, &|| {})?)
     };
     let source = super::source(sdk.commit())?;
     let started = std::time::Instant::now();
@@ -499,7 +507,9 @@ pub(super) fn prepare<'a>(
         fs::create_dir_all(package.join("src")).map_err(|e| e.to_string())?;
         write(
             package.join("Cargo.toml"),
-            &format!("[package]\nname = \"{name}\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\n[lib]\npath = \"src/lib.rs\"\n"),
+            &format!(
+                "[package]\nname = \"{name}\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\n[lib]\npath = \"src/lib.rs\"\n"
+            ),
         )?;
         write(package.join("src/lib.rs"), lib)?;
     }

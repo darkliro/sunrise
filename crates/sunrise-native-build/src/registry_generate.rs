@@ -1,5 +1,6 @@
 //! Explicit, index-only generation of the registry lock consumed by native staging.
-use super::{api, Bundle};
+use super::{Bundle, api};
+use crate::rust::Toolchain;
 use std::{
     collections::BTreeSet,
     fs,
@@ -7,7 +8,7 @@ use std::{
 };
 
 /// Copies only inert manifests. Source files, build scripts and Cargo config never enter it.
-pub(super) fn stage(bundle: &Bundle, output: &Path) -> Result<(), String> {
+pub fn stage(bundle: &Bundle, output: &Path) -> Result<(), String> {
     let mut todo = vec![PathBuf::new()];
     let mut seen = BTreeSet::new();
     while let Some(relative) = todo.pop() {
@@ -78,7 +79,7 @@ pub(super) fn stage(bundle: &Bundle, output: &Path) -> Result<(), String> {
     Ok(())
 }
 
-pub(super) fn rewrite_dependencies(
+pub fn rewrite_dependencies(
     bundle: &Bundle,
     relative: &Path,
     table: &mut toml::Table,
@@ -129,7 +130,12 @@ pub(super) fn rewrite_dependencies(
     Ok(())
 }
 
-pub(super) fn generate(bundle: &Bundle, update: bool) -> Result<(), String> {
+/// The mod's registry pins resolved with the toolchain `rust` gives, once the mod's inputs passed.
+pub fn generate<T: Toolchain>(
+    rust: impl FnOnce() -> Result<T, String>,
+    bundle: &Bundle,
+    update: bool,
+) -> Result<(), String> {
     // Project owns the original API declaration and source-policy boundary.
     api::Project::read(bundle).map_err(|e| e.to_string())?;
     let destination = bundle.dir.join("Cargo.lock");
@@ -140,7 +146,7 @@ pub(super) fn generate(bundle: &Bundle, update: bool) -> Result<(), String> {
     }
     let work = tempfile::tempdir_in(super::root()).map_err(|e| e.to_string())?;
     stage(bundle, work.path())?;
-    let rust = crate::rust_toolchain::install(|_| {})?;
+    let rust = rust()?;
     let command = super::cargo(&rust, work.path(), "generate-lockfile");
     super::run(command, "Resolving registry dependency pins", |_| {})?;
     let text = super::read_lock(work.path())?;
@@ -216,9 +222,14 @@ mod tests {
         let bundle = fixture(input.path());
         let original = fs::read_to_string(input.path().join("Cargo.toml")).unwrap();
         fs::write(input.path().join("Cargo.lock"), "original pins").unwrap();
-        assert!(generate(&bundle, false)
-            .unwrap_err()
-            .contains("--update-lock"));
+        let unreached = || -> Result<crate::rust::Unpacked, String> {
+            panic!("no toolchain before the refusal")
+        };
+        assert!(
+            generate(unreached, &bundle, false)
+                .unwrap_err()
+                .contains("--update-lock")
+        );
         for extra in [
             "[patch.crates-io]\nitoa={path='outside'}\n",
             "[replace]\n'itoa:1.0.18'={path='outside'}\n",
@@ -259,8 +270,10 @@ mod tests {
             format!("{original}\nhelper={{path='../outside'}}\n"),
         )
         .unwrap();
-        assert!(stage(&bundle, output.path())
-            .unwrap_err()
-            .contains("outside the mod"));
+        assert!(
+            stage(&bundle, output.path())
+                .unwrap_err()
+                .contains("outside the mod")
+        );
     }
 }

@@ -171,7 +171,11 @@ class SdkAssetTests(unittest.TestCase):
         def run(command, **kwargs):
             self.assertEqual(command[-3:], ["surface", str(prebuilt_game.ROOT), str(dist / "surface.json")])
             (dist / "surface.json").write_text('{"hash": "ab"}')
-        with patch.object(prebuilt_game, "head", return_value=COMMIT), patch.object(prebuilt_game, "run", side_effect=run):
+        built = out.parent / "tool"
+        built.mkdir(exist_ok=True)
+        (built / prebuilt_game.TOOL_PROGRAM).write_bytes(b"tool")
+        with patch.object(prebuilt_game, "head", return_value=COMMIT), patch.object(prebuilt_game, "run", side_effect=run), \
+                patch.object(prebuilt_game, "tool", return_value=built):
             prebuilt_game.pack(out, dist, stage_tool=Path("sunrise-stage"))
 
     def test_pack_writes_three_archives_that_split_the_package_and_the_same_every_run(self):
@@ -309,9 +313,13 @@ class SdkAssetTests(unittest.TestCase):
                 (out / prebuilt_game.IDENTITY).write_text(json.dumps(identity))
                 self.pack(out, legs / f"sdk-linux-{side}")
             prebuilt_game.gather(legs, root / "dist")
+            # The client leg alone packs the target's tool: it serves both sides.
             self.assertEqual(sorted(path.name for path in (root / "dist").iterdir()), sorted(
                 [f"{kind}-x86_64-unknown-linux-gnu{suffix}.tar.xz" for kind in ("api", "engine", "runtime")
-                 for suffix in ("", "-server")] + ["build-data.tar.xz", "surface.json"]))
+                 for suffix in ("", "-server")] + ["build-data.tar.xz", "surface.json",
+                                                   "tool-x86_64-unknown-linux-gnu.tar.xz"]))
+            with tarfile.open(root / "dist" / "tool-x86_64-unknown-linux-gnu.tar.xz") as tar:
+                self.assertEqual(tar.getnames(), [".", "./" + prebuilt_game.TOOL_PROGRAM])
 
             def refused(why, change):
                 broken = root / "broken"

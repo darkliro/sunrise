@@ -1,9 +1,9 @@
 //! API engine point validation. No source or listed-call-site fallback exists.
 use super::internals::Catalog;
-use crate::i18n::trf;
-use sunrise_mod_package::{manifest::inject::Kind, Manifest};
+use crate::host::trf;
+use sunrise_mod_package::{Manifest, manifest::inject::Kind};
 
-pub(super) fn check(catalog: &Catalog, manifest: &Manifest) -> Result<(), String> {
+pub fn check(catalog: &Catalog, manifest: &Manifest) -> Result<(), String> {
     for entry in &manifest.inject {
         let id = format!("{}:{}", manifest.id, entry.id);
         let point = catalog
@@ -26,7 +26,16 @@ pub(super) fn check(catalog: &Catalog, manifest: &Manifest) -> Result<(), String
             )
         })?;
         if let Some(hash) = entry.hash.as_ref().filter(|hash| *hash != &target.hash) {
-            return Err(trf("E_INJECT_CHANGED: {id}: {at}: pinned {pinned}, installed {installed} ({signature})", &[("id", &id), ("at", &entry.at), ("pinned", hash), ("installed", &target.hash), ("signature", &target.signature)]));
+            return Err(trf(
+                "E_INJECT_CHANGED: {id}: {at}: pinned {pinned}, installed {installed} ({signature})",
+                &[
+                    ("id", &id),
+                    ("at", &entry.at),
+                    ("pinned", hash),
+                    ("installed", &target.hash),
+                    ("signature", &target.signature),
+                ],
+            ));
         }
         if let Some(reason) = &point.api_refusal {
             return Err(trf(

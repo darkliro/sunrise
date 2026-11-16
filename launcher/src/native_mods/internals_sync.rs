@@ -160,7 +160,7 @@ fn catalog_for_mod(folder: &Path, cache_root: &Path) -> Result<PathBuf, Error> {
         super::source,
         |bundle, prepared, input, fresh| {
             let rust = rust_toolchain::install(|_| {})?;
-            let tool = super::tool(&rust, &bundle.native().mixins, &|_| {})?;
+            let tool = super::tool(&rust, &bundle.native().mixins, &|| {})?;
             super::run(
                 super::apply(&rust, &tool, prepared, input, fresh),
                 "horizon-mixins",

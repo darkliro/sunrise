@@ -1,5 +1,5 @@
 //! Prebuilt build eligibility, independent of UI preferences.
-use super::Refusal;
+use super::sdk_cache::Refusal;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Route {

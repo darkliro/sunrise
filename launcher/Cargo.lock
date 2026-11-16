@@ -6191,12 +6191,10 @@ dependencies = [
  "keyring",
  "libc",
  "objc2-app-kit 0.3.2",
- "object 0.39.1",
  "oo7",
  "png 0.18.1",
  "proc-macro2",
  "pulldown-cmark",
- "quote",
  "raw-window-handle",
  "reqwest",
  "security-framework 3.7.0",
@@ -6210,10 +6208,9 @@ dependencies = [
  "sunrise-friends",
  "sunrise-launcher-scenery",
  "sunrise-mcp",
- "sunrise-mod-api-gen",
  "sunrise-mod-package",
- "sunrise-mod-point-emit",
  "sunrise-mod-vocab",
+ "sunrise-native-build",
  "sunrise-platform",
  "sunrise-port-pack",
  "sunrise-prepare",
@@ -6383,6 +6380,29 @@ dependencies = [
  "sunrise-mod-api-gen",
  "sunrise-mod-api-macros",
  "sunrise-mod-runtime",
+]
+
+[[package]]
+name = "sunrise-native-build"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "libc",
+ "object 0.39.1",
+ "proc-macro2",
+ "quote",
+ "semver",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sunrise-addresses",
+ "sunrise-mod-package",
+ "sunrise-mod-point-emit",
+ "sunrise-platform",
+ "syn 2.0.119",
+ "tar",
+ "tempfile",
+ "toml 1.1.8+spec-1.1.0",
 ]
 
 [[package]]

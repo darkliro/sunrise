@@ -79,6 +79,7 @@ LAUNCHER_PATHS = [
     "crates/sunrise-mcp/",
     "crates/sunrise-mod-api-gen/",
     "crates/sunrise-mod-package/",
+    "crates/sunrise-native-build/",
     "crates/sunrise-port-pack/",
     "crates/sunrise-prepare/",
     "crates/sunrise-release-sign/",

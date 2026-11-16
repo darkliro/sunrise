@@ -63,6 +63,7 @@ members = [
     "crates/sunrise-mod-source",
     "crates/sunrise-mod-surface",
     "crates/sunrise-mod-point-emit",
+    "crates/sunrise-native-build",
     "crates/sunrise-mod-api-gen/dispatch-tests",
     "crates/sunrise-mod-wasm/wire-loopback",
     "crates/cargo-sunrise-mod",

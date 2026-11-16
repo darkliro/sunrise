@@ -285,7 +285,9 @@ class SdkPairTests(unittest.TestCase):
             "sdk.json", "SHA256SUMS", "SHA256SUMS.sig", "api-source.tar.xz", "build-data.tar.xz", "surface.json",
             *(f"{kind}-{leg}.tar.xz" for kind in ("runtime", "api", "engine") for leg in (
                 "x86_64-unknown-linux-gnu", "x86_64-unknown-linux-gnu-server", "x86_64-pc-windows-gnu",
-                "aarch64-apple-darwin")))]
+                "aarch64-apple-darwin")),
+            *(f"tool-{target}.tar.xz" for target in (
+                "x86_64-unknown-linux-gnu", "x86_64-pc-windows-gnu", "aarch64-apple-darwin")))]
         release = {"draft": False, "tag_name": "sdk-" + "a" * 40, "assets": assets}
         for changes, expected in [({}, True), ({"draft": True}, False),
                                   ({"tag_name": "sdk-" + "b" * 40}, False),

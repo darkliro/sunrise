@@ -824,20 +824,20 @@
     "rationale": "Existing explicit manual runner by-hand in tools/ci/ignored-tests/manual-sunrise-launcher.txt: needs the network. Not selected by daily shards."
   },
   {
-    "package": "sunrise-launcher",
+    "package": "sunrise-native-build",
     "target": "lib",
-    "test": "native_mods::api::tests::wrapper_owns_holder_marker",
-    "path": "launcher/src/native_mods/api.rs",
+    "test": "api::tests::wrapper_owns_holder_marker",
+    "path": "crates/sunrise-native-build/src/api.rs",
     "reason": "daily: starts rustc",
     "rationale": "Existing parity-harness step in tools/ci/ignored-tests/native-wrapper.txt; #4065 supplies its independent oracle/private fixture and drives it separately, not as a prepared-resource daily test."
   },
   {
-    "package": "sunrise-launcher",
+    "package": "sunrise-native-build",
     "target": "lib",
-    "test": "native_mods::registry_compile::tests::real_sdk_registry_compile",
-    "path": "launcher/src/native_mods/registry_compile.rs",
+    "test": "registry_compile::tests::real_sdk_registry_compile",
+    "path": "crates/sunrise-native-build/src/registry_compile.rs",
     "reason": "requires an explicitly prepared private SDK, mod and launcher executable",
-    "rationale": "Existing explicit manual runner by-hand in tools/ci/ignored-tests/manual-sunrise-launcher.txt: requires an explicitly prepared private SDK, mod and launcher executable. Not selected by daily shards."
+    "rationale": "Existing explicit manual runner by-hand in tools/ci/ignored-tests/manual-sunrise-native-build.txt: requires an explicitly prepared private SDK, mod and launcher executable. Not selected by daily shards."
   },
   {
     "package": "sunrise-launcher",

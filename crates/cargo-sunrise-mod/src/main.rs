@@ -26,6 +26,8 @@
 //!   do, 1 when one does not, 2 when it cannot be told.
 //! - `registry build|review|check|list`: the registry repository's CI.
 //! - `use-jar <path>`: list an exact original Java jar as a passive asset/data source.
+//! - `native-build < plan.json`: compile native mods against an unpacked SDK, as the launcher does
+//!   (docs/native-build.md).
 use sunrise_mod_package::{Content, Manifest, Package, manifest::MANIFEST};
 mod bounded;
 mod check;
@@ -34,6 +36,7 @@ mod inject_sync;
 mod internals;
 mod jar;
 mod layouts;
+mod native_build;
 mod registry;
 mod sdk_cmds;
 mod sdk_fetch;
@@ -50,6 +53,10 @@ fn is_compiler_wrapper(name: &str) -> bool {
 }
 
 fn main() -> ExitCode {
+    // A native build's registry route runs this program as Cargo's rustc wrapper.
+    if let Some(code) = sunrise_native_build::registry_rustc::wrapper() {
+        return ExitCode::from(u8::try_from(code).unwrap_or(1));
+    }
     // The uses scan parses a mod's source in a child, this program started again: run its part
     // and exit.
     let entry = mod_surface::child::child_entry();
@@ -111,6 +118,7 @@ fn main() -> ExitCode {
         Some("fits") => return sdk_cmds::fits(entry, &args[1..]),
         Some("registry") => registry::main(&args[1..]),
         Some("use-jar") => jar::run(&args[1..]),
+        Some("native-build") => return native_build::run(&args[1..]),
         Some("internals") => internals::run(&args[1..]),
         Some("inject") => inject::run(&args[1..]),
         Some("update") => {
@@ -128,7 +136,7 @@ fn main() -> ExitCode {
                 })
                 .map(|()| println!("Run `cargo sunrise-mod check`."))
         }
-        _ => Err("usage: cargo sunrise-mod new <path> [--name \"Name\"] [--template content|native|wasm [--sunrise <build>]] | update [--sunrise <build>] | inject update [--accept <id>]… | inject sync --repo <game checkout> | inject add <at> --kind <kind> [--call <canonical callee>] [--nth N] [--with <fn>] | internals sync [--repo <path>] | internals add <path>… [--kind <kind>] | build [--wasm] | wasm-std <out.wasm> | run [--game <sunrise-client>] [-- <game args>] | check [--uses] | check <file> [--kind <kind>] [--key <public key> --signature <file.minisig>] [--json] | hooks <text> [--all] | sdk diff <build> <build> | fits [<file.smod>] [--build <name>]… | registry build|review|check|list | use-jar <path>".into()),
+        _ => Err("usage: cargo sunrise-mod new <path> [--name \"Name\"] [--template content|native|wasm [--sunrise <build>]] | update [--sunrise <build>] | inject update [--accept <id>]… | inject sync --repo <game checkout> | inject add <at> --kind <kind> [--call <canonical callee>] [--nth N] [--with <fn>] | internals sync [--repo <path>] | internals add <path>… [--kind <kind>] | build [--wasm] | wasm-std <out.wasm> | run [--game <sunrise-client>] [-- <game args>] | check [--uses] | check <file> [--kind <kind>] [--key <public key> --signature <file.minisig>] [--json] | hooks <text> [--all] | sdk diff <build> <build> | fits [<file.smod>] [--build <name>]… | registry build|review|check|list | use-jar <path> | native-build < plan.json".into()),
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,

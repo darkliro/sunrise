@@ -18,7 +18,6 @@
 //!   `engine/`), each with `<slice>.stamp` beside it, written while the build lease is held; the
 //!   folder is one storage unit, evicted whole with what an unpack left in it (`.partial`,
 //!   `.lock`, a download).
-use super::prebuilt::{Package, Route};
 use super::Target;
 use crate::i18n::{tr, trf};
 use crate::rust_toolchain;
@@ -28,6 +27,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use sunrise_mod_package::mod_surface;
 use sunrise_mod_package::sdk::{self, Asset, Index, Kind, Side, INDEX};
+use sunrise_native_build::prebuilt::{self, Package, Route};
 use sunrise_release_sign::{PublicKey, SIGNATURE, SIGNATURE_V2, SUMS};
 
 /// Replaces the base SDK releases are read from: a URL, or a folder holding `sdk-<build id>/`
@@ -545,6 +545,25 @@ pub(super) fn slices(
     crate::storage::mark_used(&prebuilt.join(unit(sdk.commit(), host.target, side)))
         .map_err(|error| Refusal::Cache(super::cache_error(error)))?;
     Ok(package)
+}
+
+/// Names the folder of a prebuilt game built from a developer install's checkout
+/// (`tools/prebuilt_game.py build`). Read for developer installs only: their commit has no release.
+pub(super) const DEVELOPER_SDK: &str = "SUNRISE_LAUNCHER_DEVELOPER_SDK";
+
+/// A developer install's own prebuilt game, the folder `local` ([`DEVELOPER_SDK`]): checked to be
+/// `revision`'s for this computer and `target`, then laid out afresh as its slices by links, so
+/// the developer's folder is never changed. A release's game comes from its SDK instead
+/// ([`slices`]).
+pub(super) fn developer(revision: &str, target: Target, local: &Path) -> Result<Package, String> {
+    let host = rust_toolchain::host().ok_or_else(|| Refusal::Host.to_string())?;
+    prebuilt::check_identity(local, revision, host.target, target)?;
+    let unit = unit(revision, host.target, prebuilt::side(target));
+    let build = super::root()
+        .join("prebuilt")
+        .join(format!("{unit}.developer"));
+    let _ = fs::remove_dir_all(&build);
+    prebuilt::lay_out(local, &build, true)
 }
 
 /// The folder a build's slices for `triple` and `side` are kept in.
