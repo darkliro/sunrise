@@ -584,6 +584,26 @@ class PrebuiltContentsTests(unittest.TestCase):
             {"name": "native-sys", "version": "1.0.0", "library": "native"},
         ])
 
+    def test_a_native_library_under_the_wasm_runtime_is_named_and_a_dev_dependency_is_not(self):
+        def package(name, library=None):
+            return {"id": name, "name": name, "version": "1.0.0", "links": library,
+                    "targets": [{"name": name.replace("-", "_"), "kind": ["lib"]}]}
+        def metadata(threads_kind):
+            return {
+                "packages": [package("sunrise-mod-wasm"), package("sunrise-threads"), package("mimalloc"),
+                             package("libmimalloc-sys", "mimalloc"), package("rayon-core", "rayon-core")],
+                "resolve": {"nodes": [
+                    {"id": "sunrise-mod-wasm", "deps": [{"pkg": "sunrise-threads", "dep_kinds": [{"kind": threads_kind}]},
+                                                        {"pkg": "rayon-core", "dep_kinds": [{"kind": None}]}]},
+                    {"id": "sunrise-threads", "deps": [{"pkg": "mimalloc", "dep_kinds": [{"kind": None}]}]},
+                    {"id": "mimalloc", "deps": [{"pkg": "libmimalloc-sys", "dep_kinds": [{"kind": None}]}]},
+                    {"id": "libmimalloc-sys", "deps": []}, {"id": "rayon-core", "deps": []},
+                ]},
+            }
+        # Main before #1744: sunrise-threads, and with it mimalloc, a normal dependency of the wasm runtime.
+        self.assertEqual(prebuilt_game.wasm_runtime_native_links(metadata(None)), ["libmimalloc-sys (mimalloc)"])
+        self.assertEqual(prebuilt_game.wasm_runtime_native_links(metadata("dev")), [])
+
     def test_sdk_assertion_refuses_a_duplicate_eligible_facade_on_every_os(self):
         root = self.folder("deps/libsunrise_core-one.rmeta", "deps/libmod_api-one.rmeta",
                            "deps/libsunrise_mod_package-one.rmeta")

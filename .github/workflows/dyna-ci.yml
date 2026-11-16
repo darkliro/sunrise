@@ -876,6 +876,12 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: python3 tools/check_layers.py ${BASE_SHA:+--base "$BASE_SHA" --pull-request-merge}
+      # The prebuilt game's second dylib, the wasm runtime, holds no C library: one there is hidden from the game's
+      # library, whose link then fails (#1596's mimalloc). Reads `cargo metadata` only, compiles nothing.
+      - name: The wasm runtime links no native library
+        id: wasm_runtime_links_no_native_library
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && (needs.changes.outputs.rust_required != 'false') }}
+        run: python3 tools/prebuilt_game.py links
       # tools/hotspots/README.md: a `pub use` brace list under the vocabulary's exports/ names at most 12 items, so two
       # PRs adding names don't conflict on rustfmt's re-wrap; today's longer lists only shrink.
       - name: Export lists stay short

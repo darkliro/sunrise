@@ -67,6 +67,10 @@ INPUTS = ROOT / "crates/sunrise-mod-package/src/sdk/inputs.json"
 API_ROOTS = ("sunrise-mod-api", "sunrise-mod-points")
 # The game libraries outside the API closure, in the runtime archive.
 GAME_LIBRARIES = ("sunrise_mod_host", "sunrise_mod_wasm")
+# A crate the wasm runtime depends on normally links into its dylib alone, and a C library inside a Rust dylib is
+# hidden from the other: #1596 put mimalloc there and the game's library, which calls it, no longer linked. These
+# `links` keys carry no library: rayon-core and wasm-bindgen-shared keep one copy, sunrise-mod-vocab hands on a folder.
+LINKS_WITHOUT_LIBRARY = {"rayon-core", "sunrise-mod-vocab", "wasm-bindgen-shared"}
 # Source files the folder carries besides compiler outputs.
 CARRIED = {"Cargo.toml": None, IDENTITY: None, LOCK: ROOT / LOCK, TEMPLATE: ROOT / "crates/sunrise-client/src" / TEMPLATE,
            NATIVE_MODS_TEMPLATE: ROOT / "crates/sunrise-client/src" / NATIVE_MODS_TEMPLATE}
@@ -350,6 +354,12 @@ def native_links(metadata: dict, root: str) -> list[dict]:
     runtime = runtime_packages(metadata, root)
     return [{"name": package["name"], "version": package["version"], "library": package["links"]}
             for package in metadata["packages"] if package["id"] in runtime and package.get("links")]
+
+
+def wasm_runtime_native_links(metadata: dict) -> list[str]:
+    """Native libraries in sunrise-mod-wasm's normal dependencies, on any platform."""
+    return [f"{link['name']} ({link['library']})" for link in native_links(metadata, "sunrise-mod-wasm")
+            if link["name"] not in LINKS_WITHOUT_LIBRARY]
 
 
 def facade_crates(deps: Path, runtime: set[str]) -> list[str]:
@@ -953,8 +963,16 @@ def main() -> None:
     index_parser.add_argument("--nightly", help="the Nightly name that ships this build")
     index_parser.add_argument("--previous", nargs=2, metavar=("BUILD", "DIFF"),
                               help="the SDK published before this one, and the surface diff against it")
+    commands.add_parser("links", help="refuse a native library in the wasm runtime's dependencies (no build)")
     args = parser.parse_args()
-    if args.command == "build":
+    if args.command == "links":
+        native = wasm_runtime_native_links(json.loads(run(["cargo", "metadata", "--locked", "--format-version", "1"],
+                                                          cwd=ROOT)))
+        if native:
+            sys.exit(f"sunrise-mod-wasm's normal dependencies link a native library: {', '.join(native)}. The wasm "
+                     "runtime is its own dylib in the prebuilt game, where the library is hidden from the game's "
+                     "library that uses it; make it a dev-dependency or move what it needs to a crate without one.")
+    elif args.command == "build":
         build(args.out.resolve(), args.server)
     elif args.command == "exports":
         exports(args.out.resolve())
