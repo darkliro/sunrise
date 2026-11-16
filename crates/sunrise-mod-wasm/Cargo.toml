@@ -15,7 +15,6 @@ mod_points = { package = "sunrise-mod-points", path = "../sunrise-mod-points" }
 mod_api = { package = "sunrise-mod-api", path = "../sunrise-mod-api" }
 sunrise-mod-package = { path = "../sunrise-mod-package", default-features = false }
 sunrise-mod-point-emit = { path = "../sunrise-mod-point-emit" }
-sunrise-threads = { path = "../sunrise-threads" }
 log = "0.4"
 sha2 = "0.10"
 serde_json = "1"
@@ -30,6 +29,7 @@ sunrise-mod-api-gen = { path = "../sunrise-mod-api-gen" }
 rustix = { version = "1", default-features = false, features = ["std", "process", "fs"] }
 
 [dev-dependencies]
+sunrise-threads = { path = "../sunrise-threads" }
 sunrise-engine-slots = { path = "../sunrise-engine-slots" }
 sunrise-world = { path = "../sunrise-world" }
 tempfile = "3.27.0"

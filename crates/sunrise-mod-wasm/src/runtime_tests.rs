@@ -145,7 +145,10 @@ fn hook_round_trip_and_malformed_reply_refusal() {
 fn a_call_inside_a_tick_phase_is_refused_and_the_group_keeps_running() {
     crate::test_stack::on_guest_stack(|| {
         let module = module("i64.const 2199023255556"); // 512 << 32 | 4
-        assert_eq!(sunrise_threads::as_tick_phase(|| call(&module)), None);
+        assert_eq!(
+            sunrise_core::tick_phase::as_tick_phase(|| call(&module)),
+            None
+        );
         assert!(!module.running.poisoned.load(Ordering::Relaxed));
         assert_eq!(call(&module), Some(42));
     })

@@ -1113,7 +1113,7 @@ impl WasmMod {
         }
         // A tick phase's work runs off the tick's thread and in no fixed order: a group is
         // single-threaded and its calls ordered, so it refuses such a caller by name.
-        if sunrise_threads::in_tick_phase() {
+        if sunrise_core::tick_phase::in_tick_phase() {
             log::error!(
                 "wasm mod {}: called inside a tick phase's work, which a wasm mod never runs in",
                 self.mod_id()

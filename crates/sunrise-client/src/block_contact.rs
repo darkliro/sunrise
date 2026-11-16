@@ -406,7 +406,7 @@ pub fn in_level<R>(
 /// The level this thread's contacts answer in. A tick phase's work is refused one, by name:
 /// the level belongs to the tick's thread, and a phase that needs it reads it through its view.
 fn tick_level(read: &'static str) -> Option<&'static str> {
-    if sunrise_threads::in_tick_phase() {
+    if sunrise_core::tick_phase::in_tick_phase() {
         static REFUSED: std::sync::Once = std::sync::Once::new();
         REFUSED.call_once(|| {
             log::error!(
