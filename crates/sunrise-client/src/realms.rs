@@ -19,7 +19,7 @@ mod upload_screen;
 
 pub use reset_world_screen::{CreateWorldRequest, CreatedWorld, ResetKind, TemplateGroup};
 #[cfg(test)]
-pub(super) use reset_world_screen::{
+pub(crate) use reset_world_screen::{
     create_temporary_world, last_template_page, reset_content_y, reset_tile, template_none_lines,
 };
 
@@ -1671,7 +1671,6 @@ impl Screen {
 
     /// `RealmsMainScreen.createAddRealmButton`: with a trial available the button reads
     /// "free trial" instead of "buy".
-    #[expect(dead_code, reason = "pending main screen extraction")]
     fn add_realm_label(&self) -> String {
         if self.trial {
             crate::lang::get("mco.selectServer.freeTrial")
@@ -5881,6 +5880,7 @@ impl Screen {
         h: f32,
     ) -> Vec<(f32, f32, f32, String, bool, u8, Option<(&'static str, f32)>)> {
         let cx = (w / 2.0).floor();
+        let left = cx - (CONTENT_WIDTH / 2.0).floor();
         let t = crate::lang::get;
         let mut buttons = Vec::new();
 
@@ -6576,6 +6576,148 @@ impl Screen {
             SubScreen::UploadSelect { .. }
             | SubScreen::Uploading { .. }
             | SubScreen::CreateWorldUpload { .. } => {}
+            SubScreen::Main => {
+                let signed_in = session().is_some();
+                // : join on the left of the 308 content, the
+                // invite and news buttons 4 apart on its right.
+                buttons.push((
+                    left,
+                    12.0,
+                    self.join_width.get().max(40.0),
+                    t("mco.selectServer.joinRealm"),
+                    signed_in,
+                    14,
+                    None,
+                ));
+                buttons.push((
+                    left + CONTENT_WIDTH - 20.0 - 20.0 - 4.0,
+                    12.0,
+                    20.0,
+                    String::new(),
+                    signed_in,
+                    15,
+                    Some(("icon/invite", 14.0)),
+                ));
+                buttons.push((
+                    left + CONTENT_WIDTH - 20.0,
+                    12.0,
+                    20.0,
+                    String::new(),
+                    self.news_link.is_some(),
+                    16,
+                    Some(("icon/news", 14.0)),
+                ));
+
+                match self.layout_state() {
+                    LayoutState::List => {
+                        let server = self.selected_server();
+                        let uuid = session().map(|s| s.uuid);
+                        let owned = server.zip(uuid).is_some_and(|(s, u)| s.owned_by(u));
+                        // : unexpired, open, and
+                        // compatible (or an upgrade, or the player's own Realm).
+                        let can_play = server.is_some_and(|s| can_play(s, uuid));
+                        let expired = server.is_some_and(|s| s.expired);
+                        // 's footer: the grid centred in 66 puts row 1 at
+                        // h-55 and row 2 24 lower.
+                        let row1 = h - 55.0;
+                        let row2 = h - 31.0;
+                        buttons.push((
+                            left,
+                            row1,
+                            100.0,
+                            t("mco.selectServer.play"),
+                            can_play,
+                            1,
+                            None,
+                        ));
+                        // : a self-owned Realm
+                        // that is not uninitialized.
+                        buttons.push((
+                            left + 104.0,
+                            row1,
+                            100.0,
+                            t("mco.selectServer.configure"),
+                            owned && server.is_some_and(|s| s.state != "UNINITIALIZED"),
+                            10,
+                            None,
+                        ));
+                        buttons.push((
+                            left + 208.0,
+                            row1,
+                            100.0,
+                            t("mco.selectServer.expiredRenew"),
+                            owned && expired,
+                            11,
+                            None,
+                        ));
+                        buttons.push((
+                            left,
+                            row2,
+                            100.0,
+                            t("mco.selectServer.leave"),
+                            server.is_some() && uuid.is_some() && !owned && self.leaving.is_none(),
+                            12,
+                            None,
+                        ));
+                        buttons.push((
+                            left + 104.0,
+                            row2,
+                            100.0,
+                            self.add_realm_label(),
+                            true,
+                            13,
+                            None,
+                        ));
+                        buttons.push((left + 208.0, row2, 100.0, t("gui.back"), true, 2, None));
+                    }
+                    LayoutState::NoRealms | LayoutState::Loading => {
+                        // : Add Realm and Join Realm are off while
+                        // the list is still LOADING (a failed fetch keeps it loading).
+                        let add_enabled =
+                            !matches!(self.state, FetchState::Loading(_) | FetchState::Error(_));
+                        if matches!(self.state, FetchState::Error(_)) {
+                            buttons.push((
+                                cx - 154.0,
+                                h - 31.0,
+                                100.0,
+                                t("mco.errorMessage.retry"),
+                                true,
+                                17,
+                                None,
+                            ));
+                            buttons.push((
+                                cx - 50.0,
+                                h - 31.0,
+                                100.0,
+                                self.add_realm_label(),
+                                add_enabled,
+                                13,
+                                None,
+                            ));
+                            buttons.push((
+                                cx + 54.0,
+                                h - 31.0,
+                                100.0,
+                                t("gui.back"),
+                                true,
+                                2,
+                                None,
+                            ));
+                        } else {
+                            buttons.push((
+                                cx - 102.0,
+                                h - 31.0,
+                                100.0,
+                                self.add_realm_label(),
+                                add_enabled,
+                                13,
+                                None,
+                            ));
+                            buttons.push((cx + 2.0, h - 31.0, 100.0, t("gui.back"), true, 2, None));
+                        }
+                    }
+                }
+            }
             _ => {}
         }
         buttons
