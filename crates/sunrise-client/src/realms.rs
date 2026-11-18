@@ -12,7 +12,34 @@ pub mod availability;
 pub mod client;
 pub mod download;
 mod draw_notice;
+mod pack;
 pub mod upload;
+
+pub use pack::{RealmsPack, connect_address, pack_id, take_pending_pack};
+
+/// `CommonLinks.EXTEND_REALMS_LINK`.
+const EXTEND_REALMS: &str = "https://aka.ms/ExtendJavaRealms";
+
+/// `CommonLinks.extendRealms`: the extend page with the subscription and profile, and the
+/// `ref` only for the expired-Realm paths (the subscription tab passes NONE).
+pub(super) fn extend_link(server: &RealmServer, profile: u128, expired: bool) -> String {
+    match &server.remote_subscription_id {
+        None => EXTEND_REALMS.to_owned(),
+        Some(sub) => {
+            let base = format!("{EXTEND_REALMS}?subscriptionId={sub}&profileId={profile:032x}");
+            if expired {
+                let reference = if server.expired_trial {
+                    "expiredTrial"
+                } else {
+                    "expiredRealm"
+                };
+                format!("{base}&ref={reference}")
+            } else {
+                base
+            }
+        }
+    }
+}
 
 use crate::hud::{HudAtlas, HudBatch, rgba};
 use crate::text::Text;
@@ -105,8 +132,6 @@ const EXPIRATIONS: [(&str, Option<i64>); 7] = [
 
 /// `CommonLinks.BUY_REALMS`.
 const BUY_REALMS: &str = "https://aka.ms/BuyJavaRealms";
-/// `CommonLinks.EXTEND_REALMS_LINK`.
-const EXTEND_REALMS: &str = "https://aka.ms/ExtendJavaRealms";
 /// `CommonLinks.REALMS_CONTENT_CREATION`.
 const REALMS_CONTENT_CREATION: &str = "https://aka.ms/MinecraftRealmsContentCreator";
 
@@ -167,90 +192,6 @@ fn session() -> Option<Arc<AuthSession>> {
 
 fn client() -> Option<RealmsClient> {
     session().map(|s| RealmsClient::production(&s))
-}
-
-/// The address `/join/pc` gave, checked before it becomes `Action::Connect`: a host name,
-/// IPv4 or `[IPv6]` host, then `:` and a port number. A scheme, a path, credentials or a
-/// missing port are refused.
-pub fn connect_address(address: &str) -> Option<String> {
-    let address = address.trim();
-    let (host, port, host_ok): (&str, &str, fn(u8) -> bool) =
-        if let Some(rest) = address.strip_prefix('[') {
-            let (host, port) = rest.split_once("]:")?;
-            (host, port, |b| {
-                b.is_ascii_hexdigit() || b == b':' || b == b'.'
-            })
-        } else {
-            let (host, port) = address.rsplit_once(':')?;
-            (host, port, |b| {
-                b.is_ascii_alphanumeric() || b == b'-' || b == b'.' || b == b'_'
-            })
-        };
-    if host.is_empty() || !host.bytes().all(host_ok) {
-        return None;
-    }
-    if port.is_empty() || !port.bytes().all(|b| b.is_ascii_digit()) {
-        return None;
-    }
-    let port: u16 = port.parse().ok()?;
-    (port != 0).then(|| address.to_owned())
-}
-
-/// The world's resource pack the player agreed to download before joining
-/// (`GetServerDetailsTask.scheduleResourcePackDownload`): the next connection to `address`
-/// takes it as an allowed server pack.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct RealmsPack {
-    pub address: String,
-    pub id: u128,
-    pub url: String,
-    pub hash: String,
-}
-
-static PENDING_PACK: Mutex<Option<RealmsPack>> = Mutex::new(None);
-
-/// The pack for the connection to `address`, if the Realms screen asked for one.
-pub fn take_pending_pack(address: &str) -> Option<RealmsPack> {
-    let pack = PENDING_PACK.lock().ok()?.take()?;
-    (pack.address == address).then_some(pack)
-}
-
-/// `UUID.nameUUIDFromBytes`.
-fn name_uuid(bytes: &[u8]) -> u128 {
-    let mut h = sunrise_protocol::crypto::md5(bytes);
-    h[6] = (h[6] & 0x0f) | 0x30;
-    h[8] = (h[8] & 0x3f) | 0x80;
-    u128::from_be_bytes(h)
-}
-
-/// `GetServerDetailsTask.generatePackId`.
-pub fn pack_id(server: &RealmServer) -> u128 {
-    match &server.minigame_name {
-        Some(minigame) => name_uuid(format!("minigame:{minigame}").as_bytes()),
-        None => name_uuid(format!("realms:{}:{}", server.name, server.active_slot).as_bytes()),
-    }
-}
-
-/// `CommonLinks.extendRealms`.
-/// `CommonLinks.extendRealms`: the extend page with the subscription and profile, and the
-/// `ref` only for the expired-Realm paths (the subscription tab passes NONE).
-fn extend_link(server: &RealmServer, profile: u128, expired: bool) -> String {
-    match &server.remote_subscription_id {
-        None => EXTEND_REALMS.to_owned(),
-        Some(sub) => {
-            let base = format!("{EXTEND_REALMS}?subscriptionId={sub}&profileId={profile:032x}");
-            if expired {
-                let reference = if server.expired_trial {
-                    "expiredTrial"
-                } else {
-                    "expiredRealm"
-                };
-                format!("{base}&ref={reference}")
-            } else {
-                base
-            }
-        }
-    }
 }
 
 /// `RealmsSettingsTab`'s fields: the name, the description and the region preference,
@@ -6367,7 +6308,7 @@ impl Screen {
             }
             Popup::ResourcePack { pack } => {
                 let address = pack.address.clone();
-                if let Ok(mut slot) = PENDING_PACK.lock() {
+                if let Ok(mut slot) = pack::PENDING_PACK.lock() {
                     *slot = Some(pack);
                 }
                 Outcome::Connect(address)
