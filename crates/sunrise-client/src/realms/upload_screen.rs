@@ -415,7 +415,7 @@ impl Screen {
                 let y = (h / 6.0 + 96.0).max(102.0_f32.min(h - 24.0));
                 buttons.push((cx - 75.0, y, 150.0, t("gui.cancel"), true, 93, None));
             }
-            _ => return,
+            _ => {}
         }
     }
 
@@ -697,7 +697,7 @@ impl Screen {
                     u32::MAX,
                 );
             }
-            _ => return,
+            _ => {}
         }
     }
 

@@ -18,6 +18,10 @@ pub mod upload;
 mod upload_screen;
 
 pub use reset_world_screen::{CreateWorldRequest, CreatedWorld, ResetKind, TemplateGroup};
+#[cfg(test)]
+pub(super) use reset_world_screen::{
+    create_temporary_world, last_template_page, reset_content_y, reset_tile, template_none_lines,
+};
 
 use crate::hud::{HudAtlas, HudBatch, rgba};
 use crate::text::Text;
@@ -1667,6 +1671,7 @@ impl Screen {
 
     /// `RealmsMainScreen.createAddRealmButton`: with a trial available the button reads
     /// "free trial" instead of "buy".
+    #[expect(dead_code, reason = "pending main screen extraction")]
     fn add_realm_label(&self) -> String {
         if self.trial {
             crate::lang::get("mco.selectServer.freeTrial")
@@ -5700,11 +5705,8 @@ impl Screen {
     /// one plays; any other row does nothing.
     pub fn activate_selected(&mut self) -> Outcome {
         // `ObjectSelectionList.Entry.keyPressed`'s `isSelection` for the other lists.
-        match &self.subscreen {
-            SubScreen::UploadSelect { .. } => {
-                self.activate_upload_select();
-            }
-            _ => {}
+        if let SubScreen::UploadSelect { .. } = &self.subscreen {
+            self.activate_upload_select();
         }
         if !matches!(self.subscreen, SubScreen::Main) {
             return Outcome::None;
@@ -5760,10 +5762,8 @@ impl Screen {
         if self.wheel_reset_world(delta, cursor, h) {
             return;
         }
-        if let Some(scrolled) = self.wheel_upload_select(delta, cursor, (f32::NAN, h)) {
-            if scrolled {
-                return;
-            }
+        if let Some(true) = self.wheel_upload_select(delta, cursor, (f32::NAN, h)) {
+            return;
         }
         if let SubScreen::AddRealm {
             scroll, content, ..
@@ -5872,7 +5872,6 @@ impl Screen {
                 }
                 _ => {}
             }
-            return;
         }
     }
 

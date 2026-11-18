@@ -36,7 +36,7 @@ pub enum ResetKind {
 
 impl ResetKind {
     /// The screen's title (`RealmsResetWorldScreen`'s constants).
-    fn title(self) -> &'static str {
+    pub(super) fn title(self) -> &'static str {
         match self {
             Self::Reset => "mco.reset.world.title",
             Self::Empty => "mco.configure.world.switch.slot",
@@ -84,7 +84,7 @@ pub struct CreateWorldRequest {
 pub use preset_world::CreatedWorld;
 
 impl TemplateGroup {
-    const ALL: [Self; 4] = [
+    pub(super) const ALL: [Self; 4] = [
         Self::Normal,
         Self::Adventure,
         Self::Experience,
@@ -98,7 +98,7 @@ impl TemplateGroup {
             .expect("a group is in ALL")
     }
     /// `RealmsServer.WorldType`'s name: what `fetchWorldTemplates` puts in the path.
-    fn world_type(self) -> &'static str {
+    pub(super) fn world_type(self) -> &'static str {
         match self {
             Self::Normal => "NORMAL",
             Self::Adventure => "ADVENTUREMAP",
@@ -106,7 +106,7 @@ impl TemplateGroup {
             Self::Inspiration => "INSPIRATION",
         }
     }
-    fn title(self) -> &'static str {
+    pub(super) fn title(self) -> &'static str {
         match self {
             Self::Normal => "mco.reset.world.template",
             Self::Adventure => "mco.reset.world.adventure",
@@ -170,7 +170,7 @@ fn upload_created_world(
 /// `WorldData.createTag(null)` writes it (no `singleplayer_uuid`), the world generation
 /// and game rules, and the Create World screen's data packs moved into the world. No
 /// chunks: the Realm generates them when the world first opens.
-fn create_temporary_world(world: &CreatedWorld) -> std::result::Result<PathBuf, String> {
+pub(super) fn create_temporary_world(world: &CreatedWorld) -> std::result::Result<PathBuf, String> {
     static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let dir = std::env::temp_dir().join(format!(
         "sunrise-realms-world-upload-{}-{}",
@@ -226,14 +226,14 @@ fn fetch_template_page(
 }
 
 /// `WorldTemplatePaginatedList.isLastPage`.
-fn last_template_page(page: i32, size: i32, total: i32) -> bool {
+pub(super) fn last_template_page(page: i32, size: i32, total: i32) -> bool {
     page > 0 && size > 0 && total > 0 && page * size >= total
 }
 
 /// `TextRenderingUtils.decompose(I18n.get("mco.template.select.none", "%link"), link)`:
 /// the translated message's lines, the one holding the `%s` argument split into
 /// `before`/`link`/`after`; every other line is whole (`link` is None).
-fn template_none_lines(text: &str, link: &str) -> Vec<(String, Option<String>, String)> {
+pub(super) fn template_none_lines(text: &str, link: &str) -> Vec<(String, Option<String>, String)> {
     text.replacen("%s", "%link", 1)
         .split('\n')
         .map(|line| match line.split_once("%link") {
@@ -246,11 +246,11 @@ fn template_none_lines(text: &str, link: &str) -> Vec<(String, Option<String>, S
 /// `RealmsResetWorldScreen.init`'s grid: three 60-wide tiles with 16 padding a side, and a
 /// 16-tall spacer between the two rows (`FrameButton` is 60 wide and 69 tall: the button
 /// plus its 9-tall label). The contents frame starts at `min(63, h - 187)`.
-fn reset_content_y(h: f32) -> f32 {
+pub(super) fn reset_content_y(h: f32) -> f32 {
     63.0_f32.min(h - 187.0)
 }
 
-fn reset_tile(cx: f32, top: f32, i: usize) -> (f32, f32) {
+pub(super) fn reset_tile(cx: f32, top: f32, i: usize) -> (f32, f32) {
     let column = (i % 3) as f32;
     let row = (i / 3) as f32;
     (cx - 122.0 + column * 92.0, top + row * 85.0)
@@ -630,9 +630,8 @@ impl Screen {
             let double = matches!(self.last_click, Some((last, at)) if last == row
                 && now.duration_since(at).is_ok_and(|d| d.as_millis() < 250));
             self.last_click = Some((row, now));
-            match &mut self.subscreen {
-                SubScreen::TemplateList { selected, .. } => *selected = Some(row),
-                _ => {}
+            if let SubScreen::TemplateList { selected, .. } = &mut self.subscreen {
+                *selected = Some(row);
             }
             if double && template {
                 self.select_template();
