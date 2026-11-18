@@ -12,15 +12,25 @@ pub mod availability;
 pub mod client;
 pub mod download;
 mod draw_notice;
+mod picture;
+mod settings;
 pub mod upload;
+
+use picture::{face_from_skin, realm_name_valid, resample_icon, slot_name, template_none_lines};
+pub use settings::{ConfigureTab, SettingsDraft};
+use settings::{
+    SETTINGS_CELL_PADDING, SETTINGS_LABEL_HEIGHT, SETTINGS_LABEL_SPACING, SETTINGS_WIDGET_HEIGHT,
+    can_play, changed_distance, configure_screen, preference_label, region_rows,
+    settings_column_top, settings_rows, sort_servers, tab_geometry,
+};
 
 use crate::hud::{HudAtlas, HudBatch, rgba};
 use crate::text::Text;
 use client::{
     Backup, InviteCode, PendingInviteDto, PlayerInfo, RealmAddress, RealmServer, RealmSetting,
     RealmSlot, RealmTierConfiguration, RealmTierRange, RealmWorldOptions, RealmsClient,
-    RealmsError, RealmsNotification, RegionDataDto, RegionSelectionPreferenceDto, Subscription,
-    WorldDownload, WorldTemplate, WorldTemplateList,
+    RealmsError, RealmsNotification, RegionDataDto, Subscription, WorldDownload, WorldTemplate,
+    WorldTemplateList,
 };
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -253,257 +263,6 @@ fn extend_link(server: &RealmServer, profile: u128, expired: bool) -> String {
     }
 }
 
-/// `RealmsSettingsTab`'s fields: the name, the description and the region preference,
-/// as the player is editing them.
-#[derive(Clone, Debug, PartialEq)]
-pub struct SettingsDraft {
-    pub name: String,
-    pub description: String,
-    /// `RegionSelectionPreference`'s id: [`client::AUTOMATIC_PLAYER`],
-    /// [`client::AUTOMATIC_OWNER`] or [`client::MANUAL`].
-    pub preference: i32,
-    /// The `RealmsRegion`'s `nameId`, while `preference` is `MANUAL`.
-    pub region: Option<String>,
-    /// The field with the caret: the name (false) or the description (true).
-    pub on_description: bool,
-    /// The picked distances, once the tier configuration arrived
-    /// (`RealmsSettingsTab`'s two `OptionInstance`s; none while it hasn't).
-    pub render_distance: Option<i32>,
-    pub simulation_distance: Option<i32>,
-}
-
-impl SettingsDraft {
-    /// The draft the tab opens with (`RealmsSettingsTab.updateData`): a Realm without a
-    /// preference has `RegionSelectionPreferenceDto.DEFAULT`, automatic by owner.
-    fn of(server: &RealmServer) -> Self {
-        let (preference, region) = server.region_selection_preference.as_ref().map_or(
-            (client::AUTOMATIC_OWNER, None),
-            |p| {
-                (
-                    p.region_selection_preference,
-                    p.preferred_region.clone().filter(|r| !r.is_empty()),
-                )
-            },
-        );
-        Self {
-            name: server.name.clone(),
-            description: server.motd.clone(),
-            preference,
-            region,
-            on_description: false,
-            render_distance: None,
-            simulation_distance: None,
-        }
-    }
-    /// The preference as `RegionSelectionPreferenceDto`: the region only for `MANUAL`.
-    fn preference_dto(&self) -> RegionSelectionPreferenceDto {
-        RegionSelectionPreferenceDto {
-            region_selection_preference: self.preference,
-            preferred_region: self
-                .region
-                .clone()
-                .filter(|_| self.preference == client::MANUAL),
-        }
-    }
-}
-
-/// `RealmsSettingsTab.save`'s `updatedRenderDistance`/`updatedSimulationDistance`: a distance
-/// is sent only when the player changed it and the tier answer lets the service configure it.
-fn changed_distance(picked: Option<i32>, range: Option<&RealmTierRange>) -> Option<i32> {
-    picked.filter(|picked| range.is_some_and(|range| *picked != range.current_or_default()))
-}
-
-/// `RealmsServer.shouldPlayButtonBeActive`: open and unexpired, and this client can play
-/// it — the compatibility says compatible or an upgrade, or the player owns the Realm.
-fn can_play(server: &RealmServer, me: Option<u128>) -> bool {
-    server.is_open()
-        && (server.compatibility == "COMPATIBLE"
-            || server.compatibility == "NEEDS_UPGRADE"
-            || me.is_some_and(|me| server.owned_by(me)))
-}
-
-/// `RealmsServer.McoServerComparator` through `RealmsServerList.updateServersList`:
-/// uninitialized Realms first, then expired trials, then the player's own Realm, then
-/// unexpired before expired, open before closed, and finally the id. (Snapshot realms are
-/// not modelled: 26.3 release never lists them.)
-fn sort_servers(servers: &mut [RealmServer], owner: Option<&str>) {
-    servers.sort_by(|a, b| {
-        (b.state == "UNINITIALIZED")
-            .cmp(&(a.state == "UNINITIALIZED"))
-            .then(b.expired_trial.cmp(&a.expired_trial))
-            .then((b.owner.as_deref() == owner).cmp(&(a.owner.as_deref() == owner)))
-            .then(a.expired.cmp(&b.expired))
-            .then((b.state == "OPEN").cmp(&(a.state == "OPEN")))
-            .then(a.id.cmp(&b.id))
-    });
-}
-
-/// `RealmsSettingsTab.getTranslatableFromPreference`: a manual choice shows its region,
-/// the automatic ones their own name.
-fn preference_label(preference: i32, region: Option<&str>) -> String {
-    let t = crate::lang::get;
-    match (preference, region) {
-        (client::MANUAL, Some(region)) => {
-            client::region_translation_key(region).map_or_else(|| region.to_owned(), t)
-        }
-        (client::AUTOMATIC_PLAYER, _) => {
-            t("realms.configuration.region_preference.automatic_player")
-        }
-        _ => t("realms.configuration.region_preference.automatic_owner"),
-    }
-}
-
-/// `RealmsPreferredRegionSelectionScreen.RegionSelectionList`'s rows: automatic by player,
-/// automatic by owner, then every region as a manual choice.
-fn region_rows(regions: &[RegionDataDto]) -> Vec<(i32, Option<String>)> {
-    [
-        (client::AUTOMATIC_PLAYER, None),
-        (client::AUTOMATIC_OWNER, None),
-    ]
-    .into_iter()
-    .chain(
-        regions
-            .iter()
-            .map(|r| (client::MANUAL, Some(r.region.clone()))),
-    )
-    .collect()
-}
-
-/// `RealmsConfigureWorldScreen`'s tabs, in `MenuTabBar` order.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ConfigureTab {
-    Worlds,
-    Players,
-    Subscription,
-    Settings,
-}
-
-impl ConfigureTab {
-    /// The tabs in `MenuTabBar` order, which is also their index.
-    const ALL: [Self; 4] = [
-        Self::Worlds,
-        Self::Players,
-        Self::Subscription,
-        Self::Settings,
-    ];
-    /// `RealmsWorldsTab.TITLE` and the other tabs' own titles.
-    fn title(self) -> &'static str {
-        match self {
-            Self::Worlds => "mco.configure.worlds.title",
-            Self::Players => "mco.configure.world.players.title",
-            Self::Subscription => "mco.configure.world.subscription.tab",
-            Self::Settings => "mco.configure.world.settings.title",
-        }
-    }
-    /// `RealmsConfigureWorldScreen.init`'s `setTabActiveState(3, !serverData.expired)`: an
-    /// expired Realm's settings tab is off (with the expired tooltip).
-    fn enabled(self, expired: bool) -> bool {
-        self != Self::Settings || !expired
-    }
-}
-
-/// The tab bar's geometry over `MenuTabBar.builder(this, width)`: the bar is at most 400
-/// wide, centred, and each of the four tabs is an eighth of its inner width rounded up to an
-/// even number (`Java`'s integer division before the rounding).
-fn tab_geometry(w: f32) -> (f32, f32) {
-    let width = w.min(400.0) - 28.0;
-    let x = (((w - width) / 2.0).floor() / 2.0).ceil() * 2.0;
-    let tab = ((width / 4.0).floor() / 2.0).ceil() * 2.0;
-    (x, tab)
-}
-
-/// `RealmsSettingsTab`'s column: its `GridLayout` gives every cell `padding(8)`
-/// (`defaultCellSetting().padding(8)`), and each `CommonLayouts.labeledElement` is a
-/// 9-tall label, 4 of spacing, then its 20-tall widget. The region cell's widget is the
-/// 9-tall preference line over the 20-tall button; the toggle cell is the button alone.
-const SETTINGS_CELL_PADDING: f32 = 8.0;
-const SETTINGS_LABEL_HEIGHT: f32 = 9.0;
-const SETTINGS_LABEL_SPACING: f32 = 4.0;
-const SETTINGS_WIDGET_HEIGHT: f32 = 20.0;
-/// A plain `labeledElement` cell: (9 + 4 + 20) + padding top and bottom.
-const SETTINGS_ROW_HEIGHT: f32 = SETTINGS_LABEL_HEIGHT
-    + SETTINGS_LABEL_SPACING
-    + SETTINGS_WIDGET_HEIGHT
-    + 2.0 * SETTINGS_CELL_PADDING;
-/// The region cell: (label 9 + spacing 4 + line 9 + button 20) + padding.
-const SETTINGS_REGION_ROW_HEIGHT: f32 = SETTINGS_LABEL_HEIGHT
-    + SETTINGS_LABEL_SPACING
-    + SETTINGS_LABEL_HEIGHT
-    + SETTINGS_WIDGET_HEIGHT
-    + 2.0 * SETTINGS_CELL_PADDING;
-
-/// `RealmsSettingsTab`'s row tops relative to the column's own top — name, description,
-/// render distance, simulation distance, region, toggle — and the column's height. The
-/// two distance rows exist only once the tier answer is there (`createDistanceOption`).
-fn settings_rows(with_tier: bool) -> ([f32; 6], f32) {
-    let mut rows = [0.0; 6];
-    rows[1] = SETTINGS_ROW_HEIGHT;
-    if with_tier {
-        rows[2] = 2.0 * SETTINGS_ROW_HEIGHT;
-        rows[3] = 3.0 * SETTINGS_ROW_HEIGHT;
-        rows[4] = 4.0 * SETTINGS_ROW_HEIGHT;
-        rows[5] = rows[4] + SETTINGS_REGION_ROW_HEIGHT;
-    } else {
-        rows[4] = 2.0 * SETTINGS_ROW_HEIGHT;
-        rows[5] = rows[4] + SETTINGS_REGION_ROW_HEIGHT;
-    }
-    (
-        rows,
-        rows[5] + SETTINGS_WIDGET_HEIGHT + 2.0 * SETTINGS_CELL_PADDING,
-    )
-}
-
-/// `GridLayoutTab.doLayout`'s `FrameLayout.alignInRectangle(..., 0.5F, 1/6F)` inside the
-/// tab area below the 24-tall `MenuTabBar` and above the 33-tall footer. Java's `int`
-/// cast truncates toward zero, which matters on short windows.
-fn settings_column_top(h: f32, content_height: f32) -> f32 {
-    24.0 + ((h - 24.0 - 33.0 - content_height) / 6.0).trunc()
-}
-
-/// A configuration screen with no data yet, for an error screen's `nextScreen`
-/// (`RealmsConfigureWorldScreen.createErrorScreen` returns the list or the tab it came
-/// from); the fetch starters run when it is restored.
-fn configure_screen(server: RealmServer, tab: ConfigureTab) -> SubScreen {
-    SubScreen::Configure {
-        server,
-        tab,
-        subscription: None,
-        subscription_job: None,
-        detail: None,
-        detail_job: None,
-        deleting: None,
-        member_job: None,
-        settings: None,
-        players_scroll: crate::ui::Scroll::default(),
-        tier: None,
-        tier_job: None,
-        regions: None,
-        regions_job: None,
-        saving: None,
-        error: None,
-        job: None,
-    }
-}
-
-/// `RealmsSettingsTab.isRealmNameValid`: a name that trims to something and has no
-/// leading or trailing whitespace.
-fn realm_name_valid(name: &str) -> bool {
-    let trimmed = name.trim();
-    !trimmed.is_empty() && name.len() == trimmed.len()
-}
-
-/// `RealmsWorldOptions.getSlotName`: the player's own name, else the empty marker, else
-/// "World N" by the slot's number.
-fn slot_name(options: &RealmWorldOptions, slot: i32) -> String {
-    if !options.slot_name.trim().is_empty() {
-        return options.slot_name.clone();
-    }
-    if options.empty {
-        return crate::lang::get("mco.configure.world.slot.empty");
-    }
-    crate::lang::tr("mco.configure.world.slot", &[&slot])
-}
-
 /// `WorldSelectionList.filterAccepts`: the level name or its folder contains the filter,
 /// case-insensitively (`String.toLowerCase(Locale.ROOT)`).
 fn upload_matches(world: &crate::title::WorldEntry, query: &str) -> bool {
@@ -559,68 +318,6 @@ fn slot_picture(slot: i32, empty: bool, image: Option<&str>) -> SlotPicture<'_> 
         3 => SlotPicture::Panorama("panorama_3"),
         _ => SlotPicture::Empty,
     }
-}
-
-/// `TextRenderingUtils.decompose(I18n.get("mco.template.select.none", "%link"), link)`:
-/// the translated message's lines, the one holding the `%s` argument split into
-/// `before`/`link`/`after`; every other line is whole (`link` is None).
-fn template_none_lines(text: &str, link: &str) -> Vec<(String, Option<String>, String)> {
-    text.replacen("%s", "%link", 1)
-        .split('\n')
-        .map(|line| match line.split_once("%link") {
-            Some((before, after)) => (before.to_owned(), Some(link.to_owned()), after.to_owned()),
-            None => (line.to_owned(), None, String::new()),
-        })
-        .collect()
-}
-
-fn resample_icon(width: u32, height: u32, rgba: &[u8]) -> Option<Vec<u8>> {
-    let (w, h) = (width as usize, height as usize);
-    if w == 0 || h == 0 || rgba.len() < w * h * 4 {
-        return None;
-    }
-    let mut out = vec![0u8; 64 * 64 * 4];
-    for y in 0..64 {
-        for x in 0..64 {
-            let (sx, sy) = (x * w / 64, y * h / 64);
-            let source = (sy * w + sx) * 4;
-            let target = (y * 64 + x) * 4;
-            out[target..target + 4].copy_from_slice(&rgba[source..source + 4]);
-        }
-    }
-    Some(out)
-}
-
-/// `PlayerFaceExtractor`/`RealmsUtil.extractPlayerFace`: the head's front 8x8 texels at
-/// (8, 8) with the hat layer (40, 8) over them, scaled to the 64x64 slot.
-fn face_from_skin(skin: &[u8]) -> Option<Vec<u8>> {
-    if skin.len() < 64 * 64 * 4 {
-        return None;
-    }
-    let mut out = vec![0u8; 64 * 64 * 4];
-    for y in 0..8 {
-        for x in 0..8 {
-            let base = ((8 + y) * 64 + 8 + x) * 4;
-            let hat = ((8 + y) * 64 + 40 + x) * 4;
-            let mut texel = [skin[base], skin[base + 1], skin[base + 2], skin[base + 3]];
-            let hat_alpha = skin[hat + 3] as u16;
-            if hat_alpha > 0 {
-                for channel in 0..3 {
-                    texel[channel] = ((skin[hat + channel] as u16 * hat_alpha
-                        + texel[channel] as u16 * (255 - hat_alpha))
-                        / 255) as u8;
-                }
-                texel[3] = 255;
-            }
-            for dy in 0..8 {
-                for dx in 0..8 {
-                    let target = ((y * 8 + dy) * 64 + x * 8 + dx) * 4;
-                    out[target..target + 4].copy_from_slice(&texel);
-                }
-            }
-        }
-    }
-    Some(out)
 }
 
 /// Upload a decoded 64x64 picture into a `sunrise/world-iconN` atlas slot (the slots the
@@ -12379,18 +12076,6 @@ mod tests {
             x += sizes[i] + 16.0;
             at
         })
-    }
-
-    /// `RealmsWorldOptions.getSlotName`: the player's own name, else the empty marker, else
-    /// "World N" by the slot's number.
-    fn slot_name(options: &RealmWorldOptions, slot: i32) -> String {
-        if !options.slot_name.trim().is_empty() {
-            return options.slot_name.clone();
-        }
-        if options.empty {
-            return crate::lang::get("mco.configure.world.slot.empty");
-        }
-        crate::lang::tr("mco.configure.world.slot", &[&slot])
     }
 
     /// `InviteCodeExpiration.closestTo`: the choice nearest the time left on the code.
