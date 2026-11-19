@@ -2301,7 +2301,7 @@ sunrise-client game::remote::tests::client_handle_reads_answer_from_the_clients_
 sunrise-client game::remote::tests::client_handles_reach_a_custom_level lib daily resources
 sunrise-client game::remote::tests::client_menu_close_and_button_click_reach_the_server lib daily resources
 sunrise-client game::remote::tests::client_menu_reads_follow_packets_and_lifetimes lib daily resources
-sunrise-client game::remote::tests::client_player_reads_answer_from_the_local_players_copy lib daily resources
+sunrise-client game::remote::tests::client_player_reads_tests::client_player_reads_answer_from_the_local_players_copy lib daily resources
 sunrise-client game::remote::tests::dig_abort_tests::stopping_a_retained_client_dig_aborts_only_once lib daily resources
 sunrise-client game::remote::tests::dimension_transition_screen_is_selected_at_entry_drawn_and_dropped lib daily resources
 sunrise-client game::remote::tests::flint_and_steel_use_on_ends_the_click lib daily resources
