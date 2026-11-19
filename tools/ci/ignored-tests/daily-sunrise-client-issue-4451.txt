@@ -2296,7 +2296,7 @@ sunrise-client game::remote::tests::chat_window_and_input_tests::a_mod_chat_line
 sunrise-client game::remote::tests::chat_window_and_input_tests::mod_open_chat_fills_the_box_only_over_the_world lib daily resources
 sunrise-client game::remote::tests::client_camera_tests::client_camera_entity_returns_to_player_after_removal lib daily resources
 sunrise-client game::remote::tests::client_day_time_reads_overworld_clock_across_packets_and_levels lib daily resources
-sunrise-client game::remote::tests::client_epochs_follow_level_replacement_and_logout lib daily resources
+sunrise-client game::remote::tests::client_epochs_tests::client_epochs_follow_level_replacement_and_logout lib daily resources
 sunrise-client game::remote::tests::client_handle_reads_answer_from_the_clients_copy lib daily resources
 sunrise-client game::remote::tests::client_handles_reach_a_custom_level lib daily resources
 sunrise-client game::remote::tests::client_menu_close_and_button_click_reach_the_server lib daily resources

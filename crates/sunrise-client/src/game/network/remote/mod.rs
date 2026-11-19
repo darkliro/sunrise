@@ -890,6 +890,7 @@ impl Game<'_> {
         }
         Some(state)
     }
+
     /// The hurt sound the hurt player's own client plays from
     /// `ClientboundDamageEventPacket` (`LivingEntity.handleDamageEvent`):
     /// `Player.getHurtSound` is the damage type's effects, with the codec's
@@ -900,10 +901,12 @@ impl Game<'_> {
             None => sunrise_client::health::hurt_sound("hurt"),
         }
     }
+
     /// Leave the title for a server (ConnectScreen): an empty world fed by the connection.
     pub(super) fn connect_server(&mut self, address: &str, name: &str) -> Result<()> {
         self.connect_server_with_cookies(address, name, None)
     }
+
     /// `connect_server` carrying a transfer's stored server cookies
     /// (`TransferState`); None on an ordinary join.
     pub(super) fn connect_server_with_cookies(
@@ -914,6 +917,7 @@ impl Game<'_> {
     ) -> Result<()> {
         self.connect_server_with_options(address, name, cookies, false, false)
     }
+
     /// `ConnectScreen.startConnecting`: keep LAN discovery's server kind through loading.
     pub(super) fn connect_server_with_options(
         &mut self,
@@ -1649,6 +1653,7 @@ impl Game<'_> {
         self.capture(false);
         Ok(())
     }
+
     /// `Hud.onDisconnected`, from `Minecraft.disconnect` and `clearClientLevel`
     /// (a proxy's reconfiguration too), but the chat: joining clears it and a
     /// reconfiguration keeps it (`ChatComponent.storeState`).
@@ -1684,6 +1689,7 @@ impl Game<'_> {
             sequence: 0,
         }));
     }
+
     /// `LocalPlayer.isShiftKeyDown` (and so `isSecondaryUseActive`): the input as of the player's
     /// last tick (`input.keyPresses`, what the last ServerboundPlayerInputPacket said), not the key
     /// now: a sneak pressed in the frame of a click acts from the next tick, as on the server.
@@ -1706,6 +1712,7 @@ impl Game<'_> {
                 .unwrap_or("minecraft:air"),
         )
     }
+
     /// The server's network id of a mob effect (`brewing::EFFECTS` id).
     pub(super) fn remote_effect_network_id(&self, effect: &str) -> Option<i32> {
         let r = self.remote.as_ref()?;
@@ -1713,6 +1720,7 @@ impl Game<'_> {
             .get("minecraft:mob_effect")?
             .id(&format!("minecraft:{effect}"))
     }
+
     /// A mob effect's network id as the effect (`brewing::EFFECTS` id).
     pub(super) fn remote_effect_id(&self, effect: i32) -> Option<&'static str> {
         self.remote_effect_def(effect).map(|def| def.id)
@@ -1725,6 +1733,7 @@ impl Game<'_> {
         let name = r.builtin.get("minecraft:mob_effect")?.name(effect)?;
         sunrise_client::brewing::effect(name)
     }
+
     /// ClientPacketListener.handleUpdateMobEffect for the player itself
     /// (`LivingEntity.forceAddEffect`): the effect replaces any of its kind.
     /// Other entities' effects are not shown.
@@ -1771,6 +1780,7 @@ impl Game<'_> {
             .and_then(|i| i.id(name))
             .unwrap_or(0)
     }
+
     /// A stack from the server, decoded as the saved and command item NBT
     /// are, so tooltips and models see every field.
     pub(super) fn to_stack(&self, s: &Option<Stack>) -> Option<ItemStack> {
@@ -1788,6 +1798,7 @@ impl Game<'_> {
             &r.registries,
         ))
     }
+
     /// A stack to the server (`SetCreativeModeSlot`): the same component
     /// patch a Sunrise server sends its clients, with the registries' ids, so
     /// the server's echo doesn't hand back a bare item.
@@ -1833,6 +1844,7 @@ impl Game<'_> {
             s,
         )
     }
+
     /// `HashedStack.create` with the connection's registries (the client's
     /// `decoratedHashOpsGenerator`).
     fn hashed_stack(&self, s: &Option<ItemStack>) -> Option<Hashed> {
@@ -1843,6 +1855,7 @@ impl Game<'_> {
         };
         self.to_network(s).map(|s| Hashed::create(&s, &names))
     }
+
     /// A line in the connection's chat, with its styles, click and hover
     /// events (ChatComponent.addMessage). The lines the Chat option hides
     /// are dropped there (its `visibleMessageFilter`).
@@ -1853,6 +1866,7 @@ impl Game<'_> {
     ) -> bool {
         self.signed_chat_line(content, source, None, ChatTrust::Secure)
     }
+
     /// `chat_line` of a player message, keeping its signature for a
     /// deletion (`GuiMessage.signature`).
     fn signed_chat_line(
@@ -2092,6 +2106,7 @@ impl Game<'_> {
     pub(super) fn auth(&self) -> Option<std::sync::Arc<sunrise_client::auth::AuthSession>> {
         sunrise_client::auth::current()
     }
+
     /// `ClientSuggestionProvider.customCompletionSuggestions` of the server
     /// connection (none without one).
     pub(super) fn remote_custom_completions(&self) -> std::collections::BTreeSet<String> {
@@ -2100,6 +2115,7 @@ impl Game<'_> {
             .map(|r| r.custom_completions.clone())
             .unwrap_or_default()
     }
+
     /// The names in the server's player list, sorted.
     pub(super) fn remote_online_names(&self) -> Option<Vec<String>> {
         let r = self.remote.as_ref()?;
@@ -2107,6 +2123,7 @@ impl Game<'_> {
         names.sort();
         Some(names)
     }
+
     /// The open menu's window id (0: the inventory).
     pub(super) fn remote_menu_id(&self) -> i32 {
         self.remote
@@ -2114,6 +2131,7 @@ impl Game<'_> {
             .and_then(|r| r.menu.as_ref())
             .map_or(0, |m| m.0)
     }
+
     /// The server's last `n` chat lines, newest first.
     pub(super) fn remote_chat(&self, n: usize) -> Option<Vec<String>> {
         let r = self.remote.as_ref()?;
@@ -2125,6 +2143,7 @@ impl Game<'_> {
     pub(super) fn remote_backlog(&self) -> usize {
         self.remote.as_ref().map_or(0, |r| r.backlog.len())
     }
+
     /// A headless command oracle has a real connection but no movement tick.
     /// Acknowledge loaded terrain without predicting or sending movement.
     pub(super) fn poll_stationary_client(&mut self) -> Result<()> {
@@ -2153,6 +2172,7 @@ impl Game<'_> {
     pub(super) fn poll_remote(&mut self) -> Result<()> {
         self.poll_remote_with(false)
     }
+
     /// `Minecraft.runTick` handles every packet that came (`runAllTasks`)
     /// before the frame's ticks. What this frame's poll left for later (chunks
     /// past its budget or still decoding, and everything after them) is taken
@@ -2174,6 +2194,7 @@ impl Game<'_> {
         }
         polled
     }
+
     /// ClientSuggestionProvider.customSuggestion: the chat's completion
     /// request for an `ask_server` node goes to the server.
     fn send_suggestion_request(&mut self) {
@@ -2197,6 +2218,7 @@ impl Game<'_> {
             w.data,
         ));
     }
+
     /// ClientboundCommandSuggestionsPacket: id, range start and length, then
     /// each suggestion's text and optional tooltip.
     fn handle_command_suggestions(&mut self, data: &[u8]) {
@@ -2290,6 +2312,7 @@ impl Game<'_> {
             r.resolve_clocks();
         }
     }
+
     /// Switch to a (possibly new) dimension: a fresh client level.
     pub(in crate::game) fn enter_remote_dimension(
         &mut self,
@@ -2462,6 +2485,7 @@ impl Game<'_> {
     fn chunk_inside_remote_range(center: (i32, i32), distance: i32, x: i32, z: i32) -> bool {
         in_storage_range(distance, center, x, z)
     }
+
     /// The columns a moved or resized storage no longer holds. Returns the
     /// positions it freed (`forget_remote_columns`).
     pub(in crate::game) fn drop_remote_chunks_out_of_range(
@@ -2478,12 +2502,14 @@ impl Game<'_> {
             .collect();
         self.forget_remote_columns(&mut gone, true)
     }
+
     /// Every column goes with the client level. Returns the positions it
     /// freed (`forget_remote_columns`).
     pub(in crate::game) fn forget_all_remote_columns(&mut self) -> Vec<(i32, i32)> {
         let mut gone = self.world.chunks.keys().copied().collect();
         self.forget_remote_columns(&mut gone, false)
     }
+
     /// Forgets the `gone` columns (and empties the set): their chunks (freed on a thread
     /// of their own when there are many), their sections in the renderer and their block
     /// entities, each store once for all of them. When the level stays open,
@@ -2533,6 +2559,7 @@ impl Game<'_> {
         gone.clear();
         freed_at
     }
+
     /// `handleAnimate`: a player wakes up, or an entity gets the critical
     /// hit (`CRIT`) or magic critical hit (`ENCHANTED_HIT`) emitter.
     fn remote_animate(&mut self, id: i32, action: u8) {
@@ -2556,6 +2583,7 @@ impl Game<'_> {
         self.particles
             .tracking_emitter(ParticleOptions::simple(particle), target, body);
     }
+
     /// `handleServerData`: the server list entry of the server joined keeps
     /// the icon the server sends (`ServerList.saveSingleServer`). Single
     /// player has no entry.
@@ -2574,6 +2602,7 @@ impl Game<'_> {
             );
         }
     }
+
     /// Keep the renderable block entities (chests, furnaces) in step with blocks.
     /// `previous`: the block's state before, when it changed. A column sent again has
     /// none, and keeps its block entities' synced attachments: the server does not send
@@ -2617,6 +2646,7 @@ impl Game<'_> {
             self.retire_client_block_entity([pos.0, pos.1, pos.2], previous, removed);
         }
     }
+
     /// The player's position, for `retainKnownServerState`'s `player.position()`.
     fn player_position(&self) -> [f64; 3] {
         let at = self
@@ -2626,6 +2656,7 @@ impl Game<'_> {
             .unwrap_or(Vec3::ZERO);
         [at.x, at.y, at.z]
     }
+
     /// `Entity.isColliding(pos, state)` for the local player: the state's own
     /// collision shape, at the player's pose, against the player's box.
     fn block_meets_player(&self, pos: [i32; 3], state: BlockStateId) -> bool {
@@ -2657,6 +2688,7 @@ impl Game<'_> {
             Err(_) => false,
         }
     }
+
     /// `Entity.absSnapTo`: the remembered point, clamped to the level's edge.
     /// The velocity is left alone, and the player has no separate previous
     /// position to reset (its box is drawn from `position`).
@@ -2668,18 +2700,21 @@ impl Game<'_> {
         let z = at[2].clamp(-3.0e7, 3.0e7);
         player.position = Vec3::new(x, at[1], z);
     }
+
     /// `Entity.isVehicle` on a client: the entities a tracked entity rides.
     pub(super) fn remote_vehicle_ids(&self) -> impl Iterator<Item = u32> + '_ {
         self.remote
             .iter()
             .flat_map(|r| r.entities.values().filter_map(|t| t.vehicle))
     }
+
     /// The `SetPassengers` bookkeeping of the tracked entities.
     pub(super) fn remote_seat_passengers(&mut self, vehicle: u32, passengers: &[i32]) {
         if let Some(r) = self.remote.as_mut() {
             seat_passengers(&mut r.entities, vehicle, passengers);
         }
     }
+
     /// `recreateFromPacket`: yRot and xRot from the packet, the body and head
     /// both at its head yaw (LivingEntity).
     pub(super) fn client_attachment_entity_exists(&self, holder: Holder) -> bool {
@@ -2747,6 +2782,7 @@ impl Game<'_> {
             );
         }
     }
+
     /// A move packet for entity `id`: to the end of `path` (None: a
     /// rotation alone), turned to `rotation` if it has one. `packet` says
     /// whether a living entity more than 64 blocks away is put there at once
@@ -3094,12 +3130,14 @@ impl Game<'_> {
             }
         }
     }
+
     /// Find a game slot in the menu's complete, contiguous slot mapping.
     pub(super) fn menu_slot_index(menu: &str, internal: usize) -> Option<usize> {
         (0..)
             .map_while(|slot| Self::inventory_screen_slot(menu, slot))
             .position(|slot| slot == internal)
     }
+
     /// The workstation screen of a menu type a server opens.
     pub(super) fn remote_station_kind(menu: &str) -> Option<super::stations::Kind> {
         use super::stations::Kind;
@@ -5241,6 +5279,7 @@ impl Game<'_> {
         }
         Ok(())
     }
+
     /// `handleAddObjective`: add, remove or change an objective.
     fn remote_objective(&mut self, p: play::SetObjective) {
         use sunrise_client::scoreboard::{RenderType, tag_to_json};
@@ -5272,6 +5311,7 @@ impl Game<'_> {
             _ => {}
         }
     }
+
     /// `handleSetPlayerTeamPacket`.
     fn remote_team(&mut self, p: play::SetPlayerTeam) {
         use sunrise_client::scoreboard::{CollisionRule, Visibility, tag_to_json};
@@ -5322,6 +5362,7 @@ impl Game<'_> {
             _ => {}
         }
     }
+
     /// The player list's view of the connection: the listed players (with
     /// their downloaded skins once ready), online mode, and which players
     /// are in the level with an upside-down name.
@@ -5464,6 +5505,7 @@ impl Game<'_> {
             OwnProfile::Done(_) => {}
         }
     }
+
     /// `PlayerInfo.getSkin` for every player entity, including NPCs that are
     /// never in the tab list: resolve each profile's textures and give the
     /// level's player models their skin.
@@ -5684,6 +5726,7 @@ impl Game<'_> {
             mob.skin = skin;
         }
     }
+
     /// Puts a downloaded skin in an atlas skin slot (`SkinSlots::place`),
     /// unless every slot holds a skin drawn in the last frame.
     pub(super) fn store_skin(&mut self, location: String, rgba: Vec<u8>) {
@@ -5716,6 +5759,7 @@ impl Game<'_> {
         }
         self.gui.atlas.sprites.insert(location, rect);
     }
+
     /// Whether a downloaded skin or cape is in the atlas to draw, marking it
     /// drawn; if not (new, or its slot taken), its image is queued for upload
     /// again and it is drawn from the next frame.
@@ -5731,6 +5775,7 @@ impl Game<'_> {
             false
         }
     }
+
     /// A player's skin and model as drawn: the downloaded skin once it is in
     /// the atlas, until then the profile's default (`DefaultPlayerSkin.get`),
     /// as `PlayerInfo.getSkin` gives before the texture has loaded.
@@ -5746,10 +5791,12 @@ impl Game<'_> {
         }
         (skin, slim)
     }
+
     /// `drawn_skin` for a face in the player list or spectator menu.
     pub(super) fn face_skin(&mut self, uuid: u128, skin: &str) -> String {
         self.drawn_skin(uuid, (skin.to_owned(), false)).0
     }
+
     /// ChatType.Bound.decorate (`Decoration::Chat`) and `decorateNarration`
     /// (`Decoration::Narration`): the chat type's decoration from the
     /// server's registry, applied to `content`.
@@ -5790,6 +5837,7 @@ impl Game<'_> {
             ..ItemEntity::new(id as u32, stack, at, velocity, bob)
         });
     }
+
     /// `Entity.lerpMotion` (and `recreateFromPacket`'s motion) for the
     /// entities whose own tick moves them on a client: dropped items, experience
     /// orbs, falling blocks and primed TNT.
@@ -5862,6 +5910,7 @@ impl Game<'_> {
             p.health.food.saturation = saturation;
         }
     }
+
     /// `ServerPlayer.dismountTo` lands a rider at the ghast's own (x, maxY, z)
     /// (`HappyGhast.getDismountLocationForPassenger`). A vanilla client
     /// simulates the ghast it rides, so its copy is where the server has it;
@@ -5893,6 +5942,7 @@ impl Game<'_> {
             handler.cancel();
         }
     }
+
     /// `ClientPacketListener.handleLookAt`: `Entity.lookAt` from this
     /// player's feet or eyes, towards the packet's entity (its feet or eyes)
     /// when this client tracks it, else towards the packet's point.
@@ -5921,6 +5971,7 @@ impl Game<'_> {
             .unwrap_or(p.target);
         (self.yaw, self.pitch) = look_at_rotation(from, to);
     }
+
     /// ClientPacketListener.handleMovePlayer.
     fn remote_teleport(&mut self, p: &play::PlayerPosition) -> Result<()> {
         use play::relative as rel;
@@ -6666,6 +6717,7 @@ impl Game<'_> {
         }
         push
     }
+
     /// ClientLevel.tickEntities; a frozen level only ticks the players
     /// (`TickRateManager.isEntityFrozen`).
     /// `GuardianRenderer.getEntityToLookAt`: a guardian's eye follows its
@@ -6708,6 +6760,7 @@ impl Game<'_> {
         }
         self.guardian_look_scratch = looks;
     }
+
     /// Humanoid held arm poses, once the tick has set equipment and use state.
     pub(in crate::game) fn tick_remote_arm_poses(&mut self) {
         for i in 0..self.mobs.len() {
@@ -7362,6 +7415,7 @@ impl Game<'_> {
             }
         }
     }
+
     /// `AbstractMinecartRenderer.newExtractState`: sample the same weighted
     /// steps at the frame's partial tick, including corners within one tick.
     pub(super) fn remote_minecart_lerp(
@@ -7399,6 +7453,7 @@ impl Game<'_> {
                 weight: s.weight,
             }));
     }
+
     /// `Consumable.onConsumeTick` for another player using a consumable: the
     /// crumbs at their mouth every 4 ticks once 21.875% of its use has passed
     /// (`shouldEmitParticlesAndSounds`; the sounds come from the server).
@@ -7440,6 +7495,7 @@ impl Game<'_> {
             self.particles.add(&options, p, v);
         }
     }
+
     /// The end of the player's tick: `AbstractBoat.tick`'s paddles (the vehicle ticks before its
     /// passenger's `sendChanges`), then `LocalPlayer.sendChanges`: the input, and a passenger's look,
     /// vehicle and sprint, or `sendPosition`'s sprint and move. The held slot is not sent here:
@@ -7610,6 +7666,7 @@ impl Game<'_> {
     pub(in crate::game) fn creative_stacks(&self) -> Vec<Option<ItemStack>> {
         creative_sync_stacks(&self.inventory, &self.offhand, &self.armor)
     }
+
     /// `CreativeInventoryListener.slotChanged`: `handleCreativeModeItemAdd` for every slot the
     /// player's inventory menu changed. `CreativeModeInventoryScreen.slotClicked` ends in
     /// `broadcastChanges`, so a click's slots go out with the click, right behind a thrown
@@ -7638,6 +7695,7 @@ impl Game<'_> {
             }));
         }
     }
+
     /// Inventory as the server last described it.
     fn remote_synced(&mut self) {
         let stacks = self.creative_stacks();
@@ -7645,6 +7703,7 @@ impl Game<'_> {
             r.synced = stacks;
         }
     }
+
     /// The slots a server packet changed since `before` are as the server has them; the
     /// others keep what was last sent, so a creative click made since still goes out.
     pub(in crate::game) fn remote_synced_since(&mut self, before: &[Option<ItemStack>]) {
@@ -7890,6 +7949,7 @@ impl Game<'_> {
         );
         canceled
     }
+
     /// `Player.blockActionRestricted` for the block at `pos`: a spectator
     /// never breaks, an adventure player only with a main-hand item whose
     /// `can_break` matches the block (`ItemStack.canBreakBlockInAdventureMode`).
@@ -8083,6 +8143,7 @@ impl Game<'_> {
             .0
             .consumes_action()
     }
+
     /// `InteractionResult.CONSUME` for this click: the block keeps it and does nothing, so the
     /// item in hand never gets it either (an empty flower pot, a pressed button). For the
     /// guide's look, as `block_takes_click`.
@@ -8223,6 +8284,7 @@ impl Game<'_> {
     ) -> Option<DryPlace> {
         self.remote_place_preview(hit, stack, true)
     }
+
     /// Whether a click would place `stack` (the controller guide's look): as
     /// `remote_can_place`, by the templates' rules alone, so looking asks no
     /// mod's placement or survival hook.
@@ -8395,6 +8457,7 @@ impl Game<'_> {
         }
         false
     }
+
     /// `Item.use` runs on the client too (MultiPlayerGameMode.useItem): an
     /// item held in use until the button lets go starts being used here, so
     /// that letting go sends RELEASE_USE_ITEM (Minecraft.handleKeybinds) and
@@ -8454,6 +8517,7 @@ impl Game<'_> {
         }
         start || !matches!(&*held.item, "minecraft:bow" | "minecraft:crossbow")
     }
+
     /// `InstrumentItem.use` on this client: unless the horn is on cooldown,
     /// it is held up, plays its sound at the player and starts its cooldown.
     fn remote_use_instrument(&mut self, held: &ItemStack) {
@@ -8470,6 +8534,7 @@ impl Game<'_> {
             self.add_cooldown(group, instrument.use_ticks());
         }
     }
+
     /// Whether `stack` stays in use until the button lets go (bows,
     /// crossbows, tridents, spyglasses, shields, eyes of ender, whose
     /// `getUseDuration` 0 never counts down to the end) or the server ends
@@ -8489,6 +8554,7 @@ impl Game<'_> {
             || self.blocks_attacks(stack).is_some()
             || self.patched_held_use(stack)
     }
+
     /// Whether the server's patch gives `stack`, an item with no consumable
     /// of its own, a `consumable` with a use time or `blocks_attacks` (a
     /// sword made to block): `Item.use` starts a use of it
@@ -8545,6 +8611,7 @@ impl Game<'_> {
             self.heights.item_used(Hand::Off);
         }
     }
+
     /// `LivingEntity.updatingUsingItem` on a server client: an item held in
     /// use (`held_until_released`), and a consumable's eating animation and
     /// its crumbs until the server's USE_ITEM_COMPLETE. The server sends the
@@ -8658,6 +8725,7 @@ impl Game<'_> {
         self.item_on_use_tick(&stack, ticks);
         self.using = Some((slot, ticks + 1));
     }
+
     /// `Player.handleEntityEvent(9)`: `completeUsingItem` on the client. A consumable's last crumbs, and FoodProperties.onConsume,
     /// which runs on the client too (Consumable.onConsume calls its
     /// ConsumableListeners on both sides): the client's FoodData eats at once,
@@ -8775,6 +8843,7 @@ impl Game<'_> {
         let crit = living && self.critical_attack(scale);
         self.sweep_decision(scale, crit, target);
     }
+
     /// The entity type of the boat, minecart, armor stand or End crystal with
     /// server id `id` that an attack reaches `Player.attack`'s sweep check on,
     /// and whether it is living. A painting or item frame is not: on this
@@ -8795,6 +8864,7 @@ impl Game<'_> {
             .any(|c| c.id == id)
             .then(|| ("minecraft:end_crystal".to_owned(), false))
     }
+
     /// `MultiPlayerGameMode.attack` runs `Player.attack` on this client too.
     /// For a mob `hurtOrSimulate` fails here (`Entity.hurtClient`), so the
     /// hit has no attacker side; but `RemotePlayer.hurtClient` is true, so a
@@ -8857,6 +8927,7 @@ impl Game<'_> {
         }
         self.stop_sprint_after_extra_knockback();
     }
+
     /// The latency the server's player list gives this player
     /// (`PlayerInfo.getLatency`), none before the server lists it. A new entry reads 0 until the
     /// server's first latency update (every 600 ticks).
@@ -8946,6 +9017,7 @@ impl Game<'_> {
             _ => Ok(false),
         }
     }
+
     /// `Minecraft.handleKeybinds`: a key that opens a screen runs
     /// `Gui.setScreen`, whose `KeyMapping.releaseAll` clears the use key, and
     /// the same invocation then releases an active use
@@ -8964,6 +9036,7 @@ impl Game<'_> {
         self.right = false;
         sunrise_client::interaction_input::release_on_screen_open(&mut RemoteInputWorld(self));
     }
+
     /// `MultiPlayerGameMode.releaseUsingItem`: sends `RELEASE_USE_ITEM` and
     /// runs the client half of `Item.releaseUsing` (a Riptide launch moves the
     /// player itself). Vanilla reaches it both when the use key is let go and,
@@ -8987,6 +9060,7 @@ impl Game<'_> {
             });
         }
     }
+
     /// ClientPacketListener.sendChat / sendCommand, signed with a chat
     /// session (game/network/remote_chat.rs). The Chat option's Hidden and System
     /// levels keep chat out and Hidden keeps the commands out (ChatAbilities).
@@ -9004,6 +9078,7 @@ impl Game<'_> {
             self.send_signed_chat(message);
         }
     }
+
     /// ChatScreen.handleChatInput fires the client event for chat, not commands.
     pub(super) fn send_chat_from_screen(&mut self, message: &str) {
         if message.starts_with('/') || !mod_api::__private::listened(mod_api::HookId::ClientChat) {
@@ -9018,6 +9093,7 @@ impl Game<'_> {
             }
         }
     }
+
     /// MultiPlayerGameMode.dropItem (key.drop): predict the removal, then send
     /// the action; swing only if a nonempty stack was removed.
     pub(super) fn remote_drop(&mut self, all: bool) {
@@ -9030,6 +9106,7 @@ impl Game<'_> {
             self.swing_hand(Hand::Main, SwingAnimation::DEFAULT);
         }
     }
+
     /// Minecraft.handleKeybinds, key.swapOffhand: the server swaps the hands
     /// (ServerboundPlayerActionPacket SWAP_ITEM_WITH_OFFHAND at BlockPos.ZERO, facing down) and
     /// sends both slots back; nothing is predicted.
@@ -9042,6 +9119,7 @@ impl Game<'_> {
             r.swap_answer = [moves; 2];
         }
     }
+
     /// The server set inventory `slot` (`shield::OFFHAND_SLOT` for the off
     /// hand), `changed` from the stack this client held there. The stack
     /// that answers a swap (`setItemInHand`) is another object, which the
@@ -9065,6 +9143,7 @@ impl Game<'_> {
             self.hand_stack_replaced(slot);
         }
     }
+
     /// A container click: the server answers with the authoritative slots.
     pub(super) fn remote_click(&mut self, right: bool) {
         let Some(size) = self
@@ -9093,6 +9172,7 @@ impl Game<'_> {
         }
         self.remote_menu_ops(&[(Some(internal), i32::from(right), input)]);
     }
+
     /// ServerboundPlayerCommandPacket STOP_SLEEPING.
     pub(super) fn remote_stop_sleeping(&mut self) {
         let id = self.remote.as_ref().map_or(0, |r| r.entity_id);
@@ -9115,6 +9195,7 @@ impl Game<'_> {
                 .as_ref()
                 .is_some_and(|r| self.player.is_none() || r.level_load.is_active())
     }
+
     /// Connecting / loading screens; true when it covered the frame.
     pub(super) fn remote_overlay(&mut self, batch: &mut HudBatch) -> bool {
         if !self.remote_screen_up() {
@@ -9200,6 +9281,7 @@ impl Game<'_> {
         sunrise_client::level_loading::draw_connecting(batch, atlas, &status, self.cursor, cancel);
         true
     }
+
     /// Connected or connecting with no player yet: `ConnectScreen`, then
     /// `LevelLoadingScreen`, over the panorama with its blur.
     pub(super) fn remote_loading(&self) -> bool {
@@ -9216,6 +9298,7 @@ impl Game<'_> {
             }
         })
     }
+
     /// `ServerReconfigScreen`: a vertical layout of cells padded by 10, the
     /// title (9 high) over Disconnect (150 x 20), centred. The title's and the
     /// button's top left corners.
@@ -9231,6 +9314,7 @@ impl Game<'_> {
             ((left + across(150)) as f32, (top + 39) as f32),
         )
     }
+
     /// `ServerReconfigScreen` over the panorama; Disconnect wakes up after
     /// `DISCONNECT_TIME` (600 ticks).
     fn draw_reconfiguring(&self, batch: &mut HudBatch, since: u64) {
@@ -9246,6 +9330,7 @@ impl Game<'_> {
         let hover = sunrise_client::ui::hovered(self.cursor, bx, by, 150.0, 20.0);
         sunrise_client::ui::button(batch, atlas, bx, by, 150.0, 20.0, &label, active, hover);
     }
+
     /// `ConnectScreen`'s Cancel: a server's (single player's server isn't
     /// joined through `ConnectScreen`), until the login is done.
     fn connect_cancel(&self, (w, h): (f32, f32)) -> Option<(f32, f32)> {
@@ -9253,6 +9338,7 @@ impl Game<'_> {
         (self.player.is_none() && !r.joined && self.integrated.is_none())
             .then(|| sunrise_client::level_loading::connect_cancel(w, h))
     }
+
     /// A click on `ConnectScreen`: Cancel aborts the connection
     /// (`connect.aborted`) and goes back. Escape does nothing there
     /// (`shouldCloseOnEsc` is false).
@@ -9277,6 +9363,7 @@ impl Game<'_> {
         }
         Ok(())
     }
+
     /// The server's death message; chat uses the shared ChatComponent.
     pub(super) fn remote_hud(&self, batch: &mut HudBatch) {
         let Some(r) = &self.remote else { return };
@@ -9297,11 +9384,13 @@ impl Game<'_> {
             );
         }
     }
+
     /// Shared flag 6 of an entity on a server's client (`None` without a server).
     pub(super) fn remote_glowing(&self, id: u32) -> Option<bool> {
         let r = self.remote.as_ref()?;
         Some(r.glowing.contains(&(id as i32)))
     }
+
     /// The profile name of another player the server sent, by entity id.
     pub(super) fn remote_player_name(&self, id: u32) -> Option<&str> {
         let r = self.remote.as_ref()?;
@@ -9315,6 +9404,7 @@ impl Game<'_> {
             remote.level_players.get(&(id as i32)).copied()
         }
     }
+
     /// Status for `sunrise-ctl status`.
     /// The other players' entities in the level and their names (their
     /// profiles', which outlive the player list's entries).
@@ -9328,6 +9418,7 @@ impl Game<'_> {
             .filter_map(|(id, uuid)| Some((*id as u32, r.level_player_name(*id, uuid)?.to_owned())))
             .collect()
     }
+
     /// `ClientClockManager.tick`: the clock moves on by the game time that
     /// passed since its last tick, at its rate. A game time the server sets
     /// forward (its sync every second) moves the clock with it.
@@ -9991,6 +10082,7 @@ impl Remote {
     pub(in crate::game) fn has_level(&self) -> bool {
         client_has_level(self.logged_in, self.reconfiguring)
     }
+
     /// An entity the server added to this client level: its type
     /// (`minecraft:text_display`) and its position as last sent.
     pub(super) fn tracked_entity(&self, id: i32) -> Option<(&str, [f64; 3])> {
@@ -9998,6 +10090,7 @@ impl Remote {
             .get(&id)
             .map(|t| (t.kind.as_str(), t.position))
     }
+
     /// The profile of the player entity `id`: this window's own player, or
     /// another one by the UUID it was added with and its profile name.
     pub(super) fn level_player(&self, id: i32) -> Option<(u128, Option<&str>)> {
@@ -10007,6 +10100,7 @@ impl Remote {
         let uuid = *self.level_players.get(&id)?;
         Some((uuid, self.level_player_names.get(&id).map(String::as_str)))
     }
+
     /// `PlayerInfo.getMessageValidator().updateAndValidate(message)` for `message.sender`.
     fn validate_chat(
         &mut self,
@@ -10025,6 +10119,7 @@ impl Remote {
         }
         validated
     }
+
     /// `ClientPacketListener.initializeChatSession` for `sender`'s entry: a session the services'
     /// keys vouch for makes a keyed validator, anything else the fallback of
     /// `enforcesSecureChat()` (`canValidateProfileKeys() && serverEnforcesSecureChat`). `false`
@@ -10063,11 +10158,13 @@ impl Remote {
             }
         }
     }
+
     /// How far the server sends chunks: its view distance and the ring
     /// around (`ChunkTrackingView`), at least two.
     pub(super) fn sent_radius(&self) -> i32 {
         self.view_distance.max(2).saturating_add(1)
     }
+
     /// A player entity's profile name: the one it was created with, else its
     /// player-list entry's (an entity the list named after it spawned).
     fn level_player_name(&self, id: i32, uuid: &u128) -> Option<&str> {
@@ -10076,19 +10173,23 @@ impl Remote {
             .or_else(|| self.players.get(uuid))
             .map(String::as_str)
     }
+
     /// Listed UUIDs always have a tab entry; removal clears both together.
     pub(super) fn listed_player_count(&self) -> usize {
         self.listed.len()
     }
+
     /// The local player's profile UUID.
     pub(super) fn profile(&self) -> u128 {
         self.profile
     }
+
     /// Another player's profile UUID, by their entity id (None for the local player).
     pub(super) fn player_uuid(&self, id: u32) -> Option<u128> {
         let uuid = *self.level_players.get(&(id as i32))?;
         (uuid != self.profile).then_some(uuid)
     }
+
     /// The entity id of a player in the level, by profile UUID.
     pub(super) fn player_entity(&self, uuid: u128) -> Option<u32> {
         self.level_players
@@ -10096,6 +10197,7 @@ impl Remote {
             .find(|(_, u)| **u == uuid)
             .map(|(id, _)| *id as u32)
     }
+
     /// The client's synced Entity shared flag 0, including the local player.
     pub(in crate::game) fn entity_on_fire(&self, id: i32) -> Option<bool> {
         if id == self.entity_id {
@@ -10104,6 +10206,7 @@ impl Remote {
             self.entities.get(&id).map(|t| t.on_fire)
         }
     }
+
     /// The kind and last sent position of a tracked server entity.
     pub(super) fn tracked(&self, id: i32) -> Option<(&str, [f64; 3])> {
         self.entities.get(&id).map(|t| (&*t.kind, t.position))
@@ -10263,6 +10366,9 @@ pub(crate) mod tests {
     }
     mod client_camera_tests {
         include!("client_camera_tests.rs");
+    }
+    mod client_epochs_tests {
+        include!("client_epochs_tests.rs");
     }
     mod client_player_reads_tests {
         include!("client_player_reads_tests.rs");
@@ -11857,112 +11963,6 @@ pub(crate) mod tests {
     }
 
     #[test]
-    #[ignore = "daily"]
-    fn client_epochs_follow_level_replacement_and_logout() {
-        use super::super::{
-            execution_role::ExecutionRole, native_entity_refs::tests::with_game,
-            native_lifecycle::NativeLifecycle,
-        };
-        use mod_api::{CrosshairTarget, EntityRef};
-        use sunrise_client::{level_loading::Reason, mobs::Mob, motion::PlayerMotion};
-        use sunrise_core::geometry::Vec3;
-        use sunrise_protocol::{
-            connection::Pipe,
-            packets::play::{Clientbound, Respawn, SpawnInfo},
-        };
-
-        with_game(|game| {
-            game.options.execution_role = ExecutionRole::Client;
-            game.native_lifecycle = NativeLifecycle::default();
-            let (client, _server) = Pipe::pair();
-            game.connect_local(client, "EpochTest").unwrap();
-            // A transport alone has no ClientLevel yet.
-            assert!(game.native_lifecycle.epoch().is_none());
-            let mut spawn = SpawnInfo {
-                dimension_type: 0,
-                dimension: "minecraft:overworld".into(),
-                seed: 0,
-                game_type: 1,
-                previous_game_type: None,
-                debug: false,
-                flat: true,
-                last_death: None,
-                portal_cooldown: 0,
-                sea_level: 63,
-            };
-            game.enter_remote_dimension(&spawn, false, Reason::Other);
-            let joined = game.native_lifecycle.epoch().unwrap();
-            let old = EntityRef::new(joined, 12);
-            let remote = game.remote.as_mut().unwrap();
-            remote.menu.set(Some((7, "minecraft:generic_9x3".into())));
-            let open_generation = remote.menu.generation;
-            game.handle_packet(Clientbound::Respawn(Respawn {
-                spawn: spawn.clone(),
-                keep: 0,
-            }))
-            .unwrap();
-            assert_eq!(game.native_lifecycle.epoch(), Some(joined));
-            let remote = game.remote.as_mut().unwrap();
-            assert!(remote.menu.as_ref().is_none());
-            assert_ne!(remote.menu.generation, open_generation);
-            let inventory_generation = remote.menu.generation;
-            game.handle_packet(Clientbound::Respawn(Respawn {
-                spawn: spawn.clone(),
-                keep: 0,
-            }))
-            .unwrap();
-            assert_eq!(game.native_lifecycle.epoch(), Some(joined));
-            let remote = game.remote.as_mut().unwrap();
-            assert!(remote.menu.as_ref().is_none());
-            assert_ne!(remote.menu.generation, inventory_generation);
-            remote.menu.set(Some((7, "minecraft:generic_9x3".into())));
-            assert_ne!(remote.menu.generation, open_generation);
-            assert_ne!(remote.menu.generation, inventory_generation);
-
-            // A different level key replaces the world even with the same
-            // dimension type; IDs can be reused but old handles cannot.
-            spawn.dimension = "test:other_overworld".into();
-            game.enter_remote_dimension(&spawn, true, Reason::Other);
-            let replaced = game.native_lifecycle.epoch().unwrap();
-            assert_ne!(replaced, joined);
-            let current = EntityRef::new(replaced, 12);
-            let kind = game.res.mob_types().get("minecraft:pig").unwrap().clone();
-            game.mobs
-                .push(Mob::new(12, kind, Vec3::new(0.0, 1.0, 2.0), 0.0));
-            game.player = Some(PlayerMotion::new(game.motion, Vec3::ZERO).unwrap());
-            game.yaw = 0.0;
-            game.pitch = 0.0;
-            game.refresh_client_pick(1.0);
-            let Some(CrosshairTarget::Entity { entity, .. }) = game.crosshair_target() else {
-                panic!("the crosshair hits the pig in front of the player");
-            };
-            assert_eq!(entity, current);
-            assert!(
-                game.native_entity_target(current).is_none(),
-                "still server-only"
-            );
-            // Isolate the existing epoch check from the logical-server guard.
-            game.options.execution_role = ExecutionRole::IntegratedServer;
-            assert!(game.native_entity_target(current).is_some());
-            assert!(game.native_entity_target(old).is_none());
-            game.options.execution_role = ExecutionRole::Client;
-
-            game.client_logging_out();
-            assert!(game.native_lifecycle.epoch().is_none());
-            assert!(game.crosshair_target().is_none());
-            game.client_logging_out();
-            assert!(game.native_lifecycle.epoch().is_none());
-            let (client, _server) = Pipe::pair();
-            game.connect_local(client, "EpochTest").unwrap();
-            assert!(game.native_lifecycle.epoch().is_none());
-            game.enter_remote_dimension(&spawn, false, Reason::Other);
-            assert_ne!(game.native_lifecycle.epoch(), Some(replaced));
-            game.client_logging_out();
-            assert!(game.native_lifecycle.epoch().is_none());
-        });
-    }
-
-    #[test]
     fn the_chunk_storage_takes_any_radius_and_centre_a_server_sends() {
         use super::in_storage_range;
         // Vanilla's storage: radius at least 2, plus 3, each way from the centre.
@@ -13327,6 +13327,7 @@ pub(crate) mod tests {
             "minecraft:entity.player.hurt_on_fire"
         );
     }
+
     #[test]
     fn synchronized_damage_defaults_override_a_different_local_definition() {
         let local = sunrise_world::damage_source::Catalog::from_json(&serde_json::json!({
@@ -13346,6 +13347,7 @@ pub(crate) mod tests {
             "minecraft:entity.player.hurt"
         );
     }
+
     /// `ClientPacketListener.handleSetEntityPassengersPacket`: the vehicle
     /// ejects its passengers, then each listed entity `startRiding`s it, so
     /// `isVehicle` holds while the list is not empty, whatever the passenger's
@@ -13384,6 +13386,7 @@ pub(crate) mod tests {
         super::seat_passengers(&mut entities, 43, &[]);
         assert!(vehicles(&entities).is_empty());
     }
+
     /// `ClientboundSoundEntityPacket`: the sound is heard where the entity it
     /// names is — the local player included, which is no tracked entity — and
     /// an id this level doesn't have plays nothing at all.
@@ -13432,6 +13435,7 @@ pub(crate) mod tests {
             "a player with no position yet"
         );
     }
+
     #[test]
     fn a_sound_entity_retains_silence_for_players_and_non_mob_targets() {
         use std::collections::HashMap;
@@ -13457,6 +13461,7 @@ pub(crate) mod tests {
         assert!(player.silent);
         assert!(super::entity_sound_state(9, None, None, &tracked, None).is_none());
     }
+
     #[test]
     fn a_dragon_sound_uses_live_movement_without_losing_mob_metadata() {
         use sunrise_client::sound_engine::SoundEntityState;
