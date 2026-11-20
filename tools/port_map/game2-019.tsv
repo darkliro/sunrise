@@ -106,7 +106,7 @@ ProtoChunk.addEntity	port	crates/sunrise-world/src/worldgen/generator_decoration
 ProtoChunk.setStartForStructure	missing	-	minor: unsure: no below-zero retrogen bounds check on structure starts found
 ProtoChunk.setPersistedStatus	missing	-	minor: unsure: no setter for a proto chunk's persisted status found
 ProtoChunk.packOffsetCoordinates	inline	crates/sunrise-world/src/worldgen/terrain.rs::TerrainChunk::mark_postprocessing	the packed x|y|z offset is built inline
-ProtoChunk.unpackOffsetCoordinates	inline	crates/sunrise-client/src/save.rs::decode_proto	the stored PostProcessing shorts are unpacked to block positions: chunk x/z, the section's Y, and the packed 4-bit offsets
+ProtoChunk.unpackOffsetCoordinates	inline	crates/sunrise-client/src/save/column.rs::decode_proto	the stored PostProcessing shorts are unpacked to block positions: chunk x/z, the section's Y, and the packed 4-bit offsets
 ProtoChunk.markPosForPostProcessing	port	crates/sunrise-world/src/worldgen/terrain.rs::TerrainChunk::mark_postprocessing	-
 ProtoChunk.getBlockEntityNbtForSaving	port	crates/sunrise-client/src/save/block_entity_encode.rs::encode	the tag a chunk writes per block entity: id, x, y, z, keepPacked and the components
 ProtoChunk.removeBlockEntity	inline	crates/sunrise-world/src/worldgen/generator_decoration.rs::World::set_block	entry is dropped when the block at the position changes
