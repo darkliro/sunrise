@@ -3,7 +3,7 @@ use super::*;
 /// `RegionFileStorage.MAX_CACHE_SIZE`: the region files of a folder kept
 /// open. Each holds a file descriptor: kept for every region ever visited,
 /// a server whose players travel runs out of them (`Too many open files`).
-const MAX_OPEN_REGIONS: usize = 256;
+pub(super) const MAX_OPEN_REGIONS: usize = 256;
 /// A folder's region files, and the ones known to be missing, by region,
 /// with when each was last asked for.
 #[derive(Default)]

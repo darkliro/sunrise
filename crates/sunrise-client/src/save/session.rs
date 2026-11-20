@@ -2,7 +2,7 @@ use super::*;
 
 /// `DirectoryLock`: `session.lock` holds "\u{2603}" (UTF-16BE) under an exclusive
 /// file lock for as long as the world is open, so two instances cannot share it.
-pub struct SessionLock(fs::File);
+pub struct SessionLock(pub(super) fs::File);
 impl Drop for SessionLock {
     /// `DirectoryLock.close`: release the lock, then close the file. Closing
     /// alone keeps the lock while any copy of the descriptor lives on, such as
