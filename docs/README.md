@@ -10,6 +10,7 @@ To play, use [the launcher](https://github.com/sunrise-org/sunrise-launcher/blob
 - [Operations](operations.md): running Sunrise by hand when no agent runs and the maintainer's machines are off: merging, releases, offline runners, the mods registry, Kira, the official server, security.
 - [Build from source](native-client.md#run-from-a-checkout): your own copy of the game, resource preparation, `cargo run`.
 - [Build times](build-times.md): `tools/build_times.py` measures cold and incremental builds per crate and the critical path, writes a JSON report and a table, and compares two reports; the first numbers, Windows and Linux.
+- [Wasm subsystem build benchmarks](perf/wasmtime-build-benchmarks.md): the wasmtime/cranelift build options measured once and found neutral, and where that subsystem's cold build actually goes.
 - [Native client](native-client.md): options, controls, the dedicated server, `sunrise-ctl` scripting, packaging, architecture.
 - [Controllers](controllers.md): playing with PlayStation, Xbox and Nintendo Switch Pro controllers, Steam Deck built-in controls, analog movement, and the input layer.
 - [Host a server](hosting.md): install `sunrise-server`, prepare the game files, first run, `server.toml`, the commands, the web panel, backups, services and Docker; what works today and what doesn't yet.
