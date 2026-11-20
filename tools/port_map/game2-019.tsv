@@ -113,13 +113,13 @@ ProtoChunk.removeBlockEntity	inline	crates/sunrise-world/src/worldgen/generator_
 Strategy.getIndex	port	crates/sunrise-client-render/src/chunk.rs::index	block form (y<<8 | z<<4 | x); the biome form is biome_chunk.rs::index
 ChunkStatus.register	skip:data	-	status registry entry
 ChunkStatus.getStatusList	skip:data	-	status list is the ALL constant in chunk_status.rs
-EntityStorage.storeEntities	port	crates/sunrise-client/src/save.rs::SaveDir::save_entities	-
+EntityStorage.storeEntities	port	crates/sunrise-client/src/save/dir.rs::SaveDir::save_entities	-
 EntityStorage.reportSaveFailureIfPresent	skip:other	-	error reporting plumbing; failures come back as Result from save_entities
 EntityStorage.reportLoadFailureIfPresent	skip:other	-	error reporting plumbing; failures come back as Result from load_entities
 IOWorker.isOldChunkAround	port	crates/sunrise-client/src/old_world.rs::SavedOldWorld::is_old_chunk_around	the region files within range are scanned once each (SaveDir::old_chunk_bits) and searched for an old chunk
 IOWorker.getOrCreateOldDataForRegion	skip:java	-	cache of old-chunk data per region
 IOWorker.createOldDataForRegion	skip:java	-	cache of old-chunk data per region
-IOWorker.isOldChunk	inline	crates/sunrise-client/src/save.rs::SaveDir::old_chunk_bits	the per-record test: DataVersion below 4997, or a blending_data compound
+IOWorker.isOldChunk	inline	crates/sunrise-client/src/save/dir.rs::SaveDir::old_chunk_bits	the per-record test: DataVersion below 4997, or a blending_data compound
 IOWorker.store	port	crates/sunrise-client/src/save/region.rs::write_region_records	-
 IOWorker.loadAsync	port	crates/sunrise-client-render/src/streaming.rs::ChunkGenerator::load	gap: minor: the saved-chunk hook only; the disk read is in save.rs
 IOWorker.synchronize	skip:java	-	waits for queued async writes; Sunrise's save takes a wait flag (streaming.rs Streaming::save)
