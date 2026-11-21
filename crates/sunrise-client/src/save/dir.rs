@@ -362,7 +362,7 @@ impl SaveDir {
         }
     }
     /// A record as saved: the pending write first, then the region file.
-    fn read_record_raw(&self, folder: &str, x: i32, z: i32) -> Option<NamedTag> {
+    pub(super) fn read_record_raw(&self, folder: &str, x: i32, z: i32) -> Option<NamedTag> {
         self.try_read_record_raw(folder, x, z, Record::tag_for_metadata)
             .ok()
             .flatten()
@@ -423,7 +423,7 @@ impl SaveDir {
         }
     }
     /// A record brought to the current version (`upgrade_record`).
-    fn read_record(&self, folder: &str, x: i32, z: i32) -> Option<NamedTag> {
+    pub(super) fn read_record(&self, folder: &str, x: i32, z: i32) -> Option<NamedTag> {
         self.try_read_record(folder, x, z, Record::tag_for_metadata)
             .ok()
             .flatten()
@@ -646,7 +646,7 @@ impl SaveDir {
         }
         Some(columns)
     }
-    fn lod_surfaces(
+    pub(super) fn lod_surfaces(
         &self,
         x: i32,
         z: i32,

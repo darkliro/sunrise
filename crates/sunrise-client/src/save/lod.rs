@@ -20,7 +20,7 @@ pub struct Persistent<G> {
 pub(super) type LodSurfaces = Arc<[crate::lod::Column; 256]>;
 /// The coarsest far tile spacing whose columns read saved chunks: 16 blocks
 /// a column, and 4 with Reduced far detail (`LodSampler::set_approximate`).
-const SAVED_LOD_STRIDE: i32 = 16;
+pub(super) const SAVED_LOD_STRIDE: i32 = 16;
 const SAVED_LOD_STRIDE_REDUCED: i32 = 4;
 pub(super) struct SavedLodSampler<G: ChunkGenerator> {
     pub(super) generator: Arc<Persistent<G>>,
@@ -166,7 +166,11 @@ impl<G: ChunkGenerator> crate::streaming::LodSampler for SavedLodSampler<G> {
 /// cells): each entry's palette index as stored, unchecked. Returns the
 /// palette's length, `None` for a container vanilla does not write. Once a
 /// section: far terrain looked both up by name for each block (#6386).
-fn lod_palette_indices(container: &Tag, out: &mut [u16], minimum_bits: u32) -> Option<usize> {
+pub(super) fn lod_palette_indices(
+    container: &Tag,
+    out: &mut [u16],
+    minimum_bits: u32,
+) -> Option<usize> {
     let palette = match container.get("palette")? {
         Tag::List(palette) if (1..=out.len()).contains(&palette.len()) => palette,
         _ => return None,
