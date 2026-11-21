@@ -18,7 +18,7 @@ SerializableChunkData.packStructureData	inline	crates/sunrise-client/src/save/co
 SerializableChunkData.unpackStructureStart	skip:other		starts are written but not read back; worldgen regenerates them from the seed (vanillagen.rs)
 SerializableChunkData.unpackStructureReferences	inline	crates/sunrise-client/src/save/column.rs::decode_column	gap: minor: reads the references but does not drop ones more than 8 chunks away
 SerializableChunkData.packOffsets	inline	crates/sunrise-client/src/save/column.rs::encode_proto	packs the PostProcessing marks per section
-SimpleRegionStorage.write	port	crates/sunrise-client/src/save/dir.rs::SaveDir::queue	queues the record for the region writer thread
+SimpleRegionStorage.write	port	crates/sunrise-client/src/save/writes.rs::SaveDir::queue	queues the record for the region writer thread
 DimensionType.<init>	skip:data		validates a dimension type's numbers when datapack data loads; Sunrise uses fixed dimension data
 DimensionType.createDirectCodec	skip:java		codec for the dimension type JSON
 EnderDragonFight.createDefault	inline	crates/sunrise-client/src/game/mobs/dragon.rs::Game::load_fight	the defaults load_fight uses when no saved fight exists (scan on, no gateways yet)
