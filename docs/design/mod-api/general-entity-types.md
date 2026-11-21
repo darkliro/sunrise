@@ -124,7 +124,7 @@ Paths below are verified existing integration owners relative to this repository
 | Identity, reads and queries | `crates/sunrise-client/src/game/modding/native_entity_refs.rs:101` resolves targets, `:176` creates refs, `:245` queries entities. Extend all three to general rows; do not scan families for each lookup. |
 | Temporary lift | `crates/sunrise-client/src/game/modding/native_entity_refs.rs:86` owns held-out access. General rows must retain residency visibility and balance restoration after panic. |
 | Residency insert/remove/unload/restore/world reset | `crates/sunrise-client/src/join_seq/residency.rs:95` journals events, `:108` drains them, `:121` resets epoch. Integrate the general owner here; retirement waits for root commit. |
-| Save and chunk reload | `crates/sunrise-client/src/save.rs:3101` loads entity tags; `:3316` and `:3320` save synchronously/asynchronously. Both consume the same committed general snapshots, including quarantine. |
+| Save and chunk reload | `crates/sunrise-client/src/save/dir.rs:507` loads entity tags; `:595` and `:599` save synchronously/asynchronously. Both consume the same committed general snapshots, including quarantine. |
 | Dimension/passenger transfer | `crates/sunrise-client/src/game/entities/vehicle_teleport.rs:231` transfers vehicles, `:391` passengers. Validate the entire tree before moving any row. |
 | Server tracking and ids | `crates/sunrise-client/src/game/network/lan_entities.rs:130` runs native tracking, `:197` builds object states, `:578` supplies UUIDs, `:590` assigns ids. Include general rows once. |
 
