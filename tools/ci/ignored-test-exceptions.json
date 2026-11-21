@@ -339,7 +339,7 @@
     "package": "sunrise-client-lib",
     "target": "lib",
     "test": "save::far_census::far_floating_cells_per_level",
-    "path": "crates/sunrise-client/src/save.rs",
+    "path": "crates/sunrise-client/src/save/far_census.rs",
     "reason": "requires prepared data and a save (see the module docs)",
     "rationale": "Existing parity-harness step in tools/ci/ignored-tests/parity-harness.txt; SUNRISE_FAR_SAVE supplies its independent oracle/private fixture and drives it separately, not as a prepared-resource daily test."
   },
