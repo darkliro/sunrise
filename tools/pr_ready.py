@@ -392,7 +392,7 @@ def plan(args, base, changed, crates_of, libraries, dependencies, merge_base=Non
         # tools/hotspots/check_stand_ins.py: test stand-ins keep up with the hooks and traits they mirror.
         Step("Test stand-ins", "python3 tools/hotspots/check_stand_ins.py", where="here"),
         # Always, as in CI: some read the crates, the roadmap or the workflows.
-        Step("Python tests", "python3 -m unittest discover -s tests", where="here", summary=unittest_passed),
+        Step("Python tests", "python3 tools/ci/parallel_unittest.py", where="here", summary=unittest_passed),
         # CI's own scan (tools/ci/format_scan.py): cargo fmt, then the files no `mod` line reaches, by path.
         Step("rustfmt", "python3 tools/ci/format_scan.py", skip=None if rust else no_rust),
         Step("clippy", clippy, skip=None if rust else no_rust),
@@ -554,7 +554,7 @@ def run_windows(steps, verbose, environment=None):
         elif step.name == "Test stand-ins":
             command = [sys.executable, "tools/hotspots/check_stand_ins.py"]
         elif step.name == "Python tests":
-            command = [sys.executable, "-m", "unittest", "discover", "-s", "tests"]
+            command = [sys.executable, "tools/ci/parallel_unittest.py"]
         elif step.name == "rustfmt":
             command = [sys.executable, "tools/ci/format_scan.py"]
         elif step.name == "clippy":
