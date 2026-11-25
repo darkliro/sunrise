@@ -24,13 +24,13 @@ sunrise-client-lib entities::fire_environment_tests::ordinary_items_burn_but_nat
 sunrise-client-lib falling_block::tests::impact_hurts_only_living_intersecting_noninvulnerable_mobs lib daily resources
 sunrise-client-lib health::datapack_tests::datapack_damage_initial_snapshot_uses_the_prepared_worlds_features lib daily resources
 sunrise-client-lib health::datapack_tests::datapack_damage_new_world_drops_a_removed_resource_root_definition lib daily resources
-sunrise-client-lib health::datapack_tests::datapack_damage_uses_custom_identity_armor_fire_and_reloaded_tags lib daily resources
+sunrise-client-lib motion::hurt_tests::datapack_damage_uses_custom_identity_armor_fire_and_reloaded_tags lib daily resources
 sunrise-client-lib item_damage::tests::effective_damage_resistance_queries_allocate_nothing lib daily resources
 sunrise-client-lib item_render::glint_tests::prepared_item_atlas_matches_pinned_vanilla lib daily resources
 sunrise-client-lib item_render::tests::archive_item_models_use_real_prepared_tables_without_unpacking lib daily resources
 sunrise-client-lib item_tooltip::tests::equipment_attributes_with_prepared_items_and_language lib daily resources
 sunrise-client-lib lan::data::tests::datapack_damage_registry_reload_keeps_wire_ids_and_reloads_tags_before_future_join lib daily resources
-sunrise-client-lib landing::tests::datapack_damage_landing_uses_world_armor_tags_and_exhaustion lib daily resources
+sunrise-client-lib motion::tests::datapack_damage_landing_uses_world_armor_tags_and_exhaustion lib daily resources
 sunrise-client-lib menu::place::custom::tests::a_persistent_six_cell_grid_preserves_cooked_output_and_fuel lib daily resources
 sunrise-client-lib menu::place::custom::tests::component_distinct_stacks_never_pool_into_one_destination lib daily resources
 sunrise-client-lib menu::place::custom::tests::existing_damaged_input_is_usable_but_inventory_damaged_tools_are_not_autofilled lib daily resources

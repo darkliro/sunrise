@@ -3500,17 +3500,17 @@ pub(super) fn play_ambient(m: &mut Mob, w: &MobWorld, events: &mut Vec<MobEvent>
         Species::Enderman if m.ai.target.is_some() => "entity.enderman.scream",
         // Wolf.isAngry reads the persistent anger timer, not the current target.
         Species::Wolf => {
-            play_wolf_ambient(m, w.side.variant_tables(), events);
+            play_wolf_ambient(m, w.variant_tables(), events);
             return;
         }
         Species::Pig | Species::Cow | Species::Chicken => {
-            play_farm_ambient(m, w.side.variant_tables(), events);
+            play_farm_ambient(m, w.variant_tables(), events);
             return;
         }
         Species::Parrot => super::parrot::ambient(m, w),
         // Cat.getAmbientSound: purr in love, purreow one time in four, else ambient (stray_ambient when wild).
         Species::Cat => {
-            play_cat_ambient(m, w.side.variant_tables(), events);
+            play_cat_ambient(m, w.variant_tables(), events);
             return;
         }
         // Fox.getAmbientSound: a sleeping fox makes its sleep sound.

@@ -16,9 +16,7 @@ impl PlayerMotion {
         )
         .map_err(attribute_error)?;
         Ok(Self {
-            random: sunrise_core::random::EntityRandom::own(crate::mobs::entity_random(
-                0, position,
-            )),
+            random: sunrise_core::random::EntityRandom::own(super::entity_random(0, position)),
             health: crate::health::PlayerHealth::new(&resources.health, &mut attributes)?,
             status: crate::effects::StatusFlags::default(),
             impulse: ImpulseContext::default(),
