@@ -4917,6 +4917,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "sunrise-entity-data"
+version = "0.1.0"
+dependencies = [
+ "sunrise-core",
+]
+
+[[package]]
 name = "sunrise-friends"
 version = "0.1.0"
 dependencies = [
