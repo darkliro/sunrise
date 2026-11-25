@@ -1308,6 +1308,8 @@ fn profile_tag(p: &Profile) -> Tag {
     Tag::compound(entries)
 }
 
+pub(crate) mod net_stack;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1456,11 +1458,13 @@ mod tests {
                 );
                 let projected = std::cell::RefCell::new(Vec::<Admitted>::new());
                 let held = Some(held);
-                let sent =
-                    crate::lan::guest::stack_to_network_projecting(|_| 1, ids, &held, &|effect| {
-                        projected.borrow_mut().push(effect.clone())
-                    })
-                    .unwrap();
+                let sent = crate::item_sync::net_stack::stack_to_network_projecting(
+                    |_| 1,
+                    ids,
+                    &held,
+                    &|effect| projected.borrow_mut().push(effect.clone()),
+                )
+                .unwrap();
                 assert_eq!(
                     sent.component(kind),
                     Some(&Component::Raw(wire[1..].to_vec()))
@@ -1495,7 +1499,8 @@ mod tests {
                     matches!(child.death_protection(None), Some([ConsumeEffect::Native(effect)]) if effect.registered.as_ref().is_some_and(|admitted| admitted.wire.as_ref() == [7]))
                 );
                 let echoed =
-                    crate::lan::guest::stack_to_network(|_| 1, ids, &Some(received)).unwrap();
+                    crate::item_sync::net_stack::stack_to_network(|_| 1, ids, &Some(received))
+                        .unwrap();
                 assert_eq!(echoed.component(kind), sent.component(kind));
                 assert_eq!(
                     loads.load(Ordering::Relaxed),
@@ -1521,7 +1526,9 @@ mod tests {
                     Some([ConsumeEffect::ClearAllEffects].as_slice())
                 );
                 assert_eq!(loads.load(Ordering::Relaxed), before + 3);
-                let sent = crate::lan::guest::stack_to_network(|_| 1, ids, &Some(invalid)).unwrap();
+                let sent =
+                    crate::item_sync::net_stack::stack_to_network(|_| 1, ids, &Some(invalid))
+                        .unwrap();
                 let mut survivor = wire[1..wire.len() - 2].to_vec();
                 survivor.push(
                     synced
@@ -2196,7 +2203,7 @@ mod tests {
         };
         let dynamic = Dynamic::default();
         let water = ItemStack::new("minecraft:potion", 1).with_potion("minecraft:water");
-        let wire = crate::lan::guest::stack_to_network(
+        let wire = crate::item_sync::net_stack::stack_to_network(
             |name| builtin.get("minecraft:item").unwrap().id(name).unwrap(),
             |registry, name| builtin.get(registry)?.id(name),
             &Some(water.clone()),
@@ -2274,7 +2281,7 @@ mod tests {
         };
         let mut bundle = ItemStack::new("minecraft:bundle", 1);
         bundle.data_mut().bundle_contents = vec![ItemStack::new("minecraft:stone", 32)];
-        let wire = crate::lan::guest::stack_to_network(
+        let wire = crate::item_sync::net_stack::stack_to_network(
             |name| items.iter().position(|i| *i == name).unwrap_or(0) as i32,
             |_, _| None,
             &Some(bundle),
@@ -2368,7 +2375,7 @@ mod tests {
                 extra,
                 ..ItemStack::new(&case.item, 1)
             };
-            let wire = crate::lan::guest::stack_to_network(
+            let wire = crate::item_sync::net_stack::stack_to_network(
                 |name| if name == case.item { case.item_id } else { 0 },
                 |_, _| None,
                 &Some(stack),
@@ -2411,7 +2418,7 @@ mod tests {
             extra,
             ..ItemStack::new("minecraft:stick", 1)
         };
-        let wire = crate::lan::guest::stack_to_network(
+        let wire = crate::item_sync::net_stack::stack_to_network(
             |name| items.iter().position(|i| *i == name).unwrap_or(0) as i32,
             |_, _| None,
             &Some(stick),
@@ -2518,7 +2525,7 @@ mod tests {
                     extra,
                     ..ItemStack::new("minecraft:iron_spear", 1)
                 };
-                let sent = crate::lan::guest::stack_to_network(
+                let sent = crate::item_sync::net_stack::stack_to_network(
                     |_| 1,
                     |registry, name| builtin.get(registry)?.id(name),
                     &Some(source),
@@ -2584,7 +2591,7 @@ mod tests {
                     }
                     // Re-encoding the decoded saved component must reproduce the
                     // actual stream bytes, including every non-pose field.
-                    let sent_again = crate::lan::guest::stack_to_network(
+                    let sent_again = crate::item_sync::net_stack::stack_to_network(
                         |_| 1,
                         |registry, name| builtin.get(registry)?.id(name),
                         &Some(back),
@@ -2628,7 +2635,8 @@ mod tests {
                 hoe.data_mut()
                     .set_other("minecraft:unbreakable", Some(marker.clone()));
             }
-            let sent = crate::lan::guest::stack_to_network(|_| 1, |_, _| None, &Some(hoe));
+            let sent =
+                crate::item_sync::net_stack::stack_to_network(|_| 1, |_, _| None, &Some(hoe));
             let mut w = Writer::new();
             Slot::write(&sent, &mut w);
             let mut r = Reader::new(&w.data);
@@ -2738,7 +2746,8 @@ mod tests {
                 ]),
             ])),
         );
-        let sent = crate::lan::guest::stack_to_network(|_| 1, ids, &Some(pickaxe.clone()));
+        let sent =
+            crate::item_sync::net_stack::stack_to_network(|_| 1, ids, &Some(pickaxe.clone()));
         let mut w = Writer::new();
         Slot::write(&sent, &mut w);
         let mut r = Reader::new(&w.data);
@@ -2849,7 +2858,7 @@ mod tests {
         plain
             .data_mut()
             .set_other("!minecraft:tool", Some(Tag::Compound(Default::default())));
-        let sent = crate::lan::guest::stack_to_network(|_| 1, ids, &Some(plain)).unwrap();
+        let sent = crate::item_sync::net_stack::stack_to_network(|_| 1, ids, &Some(plain)).unwrap();
         assert_eq!(sent.removed, [component::TOOL]);
         assert!(sent.added.is_empty());
     }
@@ -2887,7 +2896,7 @@ mod tests {
             if let Some(a) = amplifier {
                 bottle.data_mut().ominous_amplifier = Some(a);
             }
-            let wire = crate::lan::guest::stack_to_network(
+            let wire = crate::item_sync::net_stack::stack_to_network(
                 |name| items.iter().position(|i| *i == name).unwrap_or(0) as i32,
                 |_, _| None,
                 &Some(bottle),
@@ -2910,9 +2919,12 @@ mod tests {
     fn direct_trim_uses_actual_model_on_both_sides_without_cached_wire() {
         let source = sunrise_core::nbt::parse_snbt(r#"{id:"minecraft:diamond_chestplate",count:1,components:{"minecraft:trim":{material:{palette_id:"minecraft:gold",description:"Inline material"},pattern:{asset_id:"minecraft:coast",description:"Inline pattern",decal:0b}},"minecraft:custom_data":{keep:284}}}"#).unwrap().0;
         let modeled = crate::save::item_from_nbt(&source).unwrap();
-        let network =
-            crate::lan::guest::stack_to_network(|_| 1, |_, _| None, &Some(modeled.clone()))
-                .unwrap();
+        let network = crate::item_sync::net_stack::stack_to_network(
+            |_| 1,
+            |_, _| None,
+            &Some(modeled.clone()),
+        )
+        .unwrap();
         assert!(matches!(
             network.component(component::TRIM),
             Some(Component::TrimDirect { .. })
@@ -2947,7 +2959,8 @@ mod tests {
         back.data_mut().wire = Default::default();
         assert_eq!(back, modeled);
         assert_eq!(crate::save::item_to_nbt(&back, &Default::default()), source);
-        let again = crate::lan::guest::stack_to_network(|_| 1, |_, _| None, &Some(back)).unwrap();
+        let again =
+            crate::item_sync::net_stack::stack_to_network(|_| 1, |_, _| None, &Some(back)).unwrap();
         assert!(matches!(
             again.component(component::TRIM),
             Some(Component::TrimDirect { .. })
@@ -3045,7 +3058,7 @@ mod tests {
                 .and_then(|ids| ids.id(name))
                 .or_else(|| dynamic.id(registry, name))
         };
-        let wire = crate::lan::guest::stack_to_network(
+        let wire = crate::item_sync::net_stack::stack_to_network(
             |name| {
                 builtin
                     .get("minecraft:item")
@@ -3076,7 +3089,7 @@ mod tests {
         // PotionContents: the potion is a built-in registry, as a hub's
         // `SyncData::id` treats it, so the id has to come from there.
         let potion = ItemStack::new("minecraft:splash_potion", 1).with_potion("swiftness");
-        let wire = crate::lan::guest::stack_to_network(
+        let wire = crate::item_sync::net_stack::stack_to_network(
             |name| id("minecraft:item", name).unwrap_or(0),
             id,
             &Some(potion),
@@ -3092,7 +3105,7 @@ mod tests {
         stew.data_mut()
             .stew_effects
             .push((Arc::from("minecraft:fire_resistance"), 60));
-        let wire = crate::lan::guest::stack_to_network(
+        let wire = crate::item_sync::net_stack::stack_to_network(
             |name| id("minecraft:item", name).unwrap_or(0),
             id,
             &Some(stew),
@@ -3155,7 +3168,7 @@ mod tests {
                 .or_else(|| dynamic.id(registry, name))
         };
         let round_trip = |stack| {
-            let wire = crate::lan::guest::stack_to_network(
+            let wire = crate::item_sync::net_stack::stack_to_network(
                 |name| id("minecraft:item", name).unwrap_or(0),
                 id,
                 &Some(stack),
@@ -3272,7 +3285,7 @@ mod tests {
             "minecraft:painting/variant",
             Some(Tag::String("minecraft:alban".into())),
         );
-        let wire = crate::lan::guest::stack_to_network(
+        let wire = crate::item_sync::net_stack::stack_to_network(
             |name| items.iter().position(|i| *i == name).unwrap_or(0) as i32,
             |registry, name| dynamic.id(registry, name),
             &Some(alban.clone()),
@@ -3325,7 +3338,7 @@ mod tests {
         let dynamic = Dynamic::default();
         let id = |registry: &str, name: &str| builtin.get(registry)?.id(name);
         let sent_on = |stack: ItemStack| {
-            let wire = crate::lan::guest::stack_to_network(
+            let wire = crate::item_sync::net_stack::stack_to_network(
                 |name| id("minecraft:item", name).unwrap_or(0),
                 id,
                 &Some(stack),
@@ -3418,7 +3431,7 @@ mod tests {
             .set_other("minecraft:sign_text_front", Some(front.clone()));
         sign.data_mut()
             .set_other("minecraft:sign_text_back", Some(back.clone()));
-        let wire = crate::lan::guest::stack_to_network(
+        let wire = crate::item_sync::net_stack::stack_to_network(
             |name| items.iter().position(|i| *i == name).unwrap_or(0) as i32,
             |_, _| None,
             &Some(sign),
@@ -3475,7 +3488,7 @@ mod tests {
                 ("strings", Tag::List(vec![Tag::String("mymod:ruby".into())])),
             ])),
         );
-        let wire = crate::lan::guest::stack_to_network(
+        let wire = crate::item_sync::net_stack::stack_to_network(
             |name| builtin.get("minecraft:item").unwrap().id(name).unwrap(),
             |_, _| None,
             &Some(item.clone()),
@@ -3522,7 +3535,7 @@ mod tests {
             .set_other("minecraft:rarity", Some(Tag::String("epic".into())));
         item.enchant("minecraft:aqua_affinity", 1);
 
-        let wire = crate::lan::guest::stack_to_network(
+        let wire = crate::item_sync::net_stack::stack_to_network(
             |name| builtin.get("minecraft:item").unwrap().id(name).unwrap(),
             |_, _| None,
             &Some(item.clone()),
@@ -3574,7 +3587,7 @@ mod tests {
             .set_other("minecraft:max_stack_size", Some(Tag::Int(16)));
         item.data_mut()
             .set_other("minecraft:custom_data", Some(marker.clone()));
-        let wire = crate::lan::guest::stack_to_network(
+        let wire = crate::item_sync::net_stack::stack_to_network(
             |name| builtin.get("minecraft:item").unwrap().id(name).unwrap(),
             |_, _| None,
             &Some(item),
@@ -3605,7 +3618,7 @@ mod tests {
             "!minecraft:max_stack_size",
             Some(Tag::Compound(Default::default())),
         );
-        let wire = crate::lan::guest::stack_to_network(
+        let wire = crate::item_sync::net_stack::stack_to_network(
             |name| builtin.get("minecraft:item").unwrap().id(name).unwrap(),
             |_, _| None,
             &Some(cleared),

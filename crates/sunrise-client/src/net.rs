@@ -4030,7 +4030,7 @@ mod tests {
                     );
                 }
                 let encode = |item| {
-                    crate::lan::guest::stack_to_network(
+                    crate::item_sync::net_stack::stack_to_network(
                         |_| 1,
                         |registry, name| {
                             if registry == consume_effects::REGISTRY {
