@@ -167,7 +167,7 @@ impl<T> Producer<T> {
     }
 
     #[cfg(feature = "test-payload-probe")]
-    pub(super) fn hold_test_credit(&self, total_bytes: usize) -> byte_channel::Permit<T> {
+    pub(crate) fn hold_test_credit(&self, total_bytes: usize) -> byte_channel::Permit<T> {
         self.sender
             .reserve(total_bytes - byte_channel::message_overhead::<T>())
             .expect("hold the remaining test ingress credit")
@@ -197,7 +197,7 @@ impl<T> Consumer<T> {
         self.receiver.recv_timeout_owned(timeout)
     }
     #[cfg(any(test, feature = "test-payload-probe"))]
-    pub(super) fn wait_for_parked_reader(&self) {
+    pub(crate) fn wait_for_parked_reader(&self) {
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
         while self.receiver.waiting_for_space() == 0 {
             assert!(
@@ -207,7 +207,7 @@ impl<T> Consumer<T> {
             std::thread::yield_now();
         }
     }
-    pub(super) fn close_reader_admission(&self) {
+    pub(crate) fn close_reader_admission(&self) {
         self.receiver.close_wait_admission();
     }
     /// Only values already published at the beginning of this turn. New replies

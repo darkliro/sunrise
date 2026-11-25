@@ -1492,9 +1492,11 @@ fn prepare_pairing_attachment_sync(
                     PayloadBytes(bytes.clone()),
                 )
                 .map(|prepared| {
-                    prepared
-                        .into_prepared_body(epoch.clone())
-                        .expect("server endpoint produces a prepared server body")
+                    super::Body::Prepared(
+                        prepared
+                            .into_pairing(epoch.clone())
+                            .expect("server endpoint produces a prepared server body"),
+                    )
                 })
         }
         Err(reason) => Err(PayloadSendError::EncodeFailed(reason.clone())),
@@ -3957,8 +3959,11 @@ mod tests {
             let mut neg = Negotiation::new(local.manifest.clone());
             neg.receive(Control::Offer(local.manifest.clone())).unwrap();
             let accepted = neg.accepted().unwrap().to_vec();
-            let transport =
-                crate::raw_payloads::Transport::new(local, crate::raw_payloads::Side::Server);
+            let transport = crate::raw_payloads::Transport::new(
+                local,
+                crate::raw_payloads::Side::Server,
+                crate::lan::PAYLOAD_RECORD_OVERHEAD,
+            );
             transport.accept(&accepted).unwrap();
             transport.finish_configuration().unwrap();
             let (sender, _) =

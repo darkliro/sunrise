@@ -842,6 +842,7 @@ impl PreparedPayload {
         }
     }
     /// Transfer the existing reservation with the framed body into its pairing bundle.
+    #[cfg(test)]
     pub(crate) fn into_prepared_body(
         mut self,
         epoch: Arc<crate::raw_payloads::connection::Epoch>,
@@ -853,6 +854,54 @@ impl PreparedPayload {
             pending: self.sender.pending.clone(),
             cost: self.cost,
         }))
+    }
+}
+impl crate::raw_payloads::PreparedSend for PreparedPayload {
+    fn publish(self: Box<Self>) -> Result<(), PayloadSendError> {
+        (*self).publish()
+    }
+    fn into_pairing(
+        self: Box<Self>,
+        epoch: Arc<crate::raw_payloads::connection::Epoch>,
+    ) -> Option<Arc<crate::raw_payloads::PairingPayload>> {
+        let mut this = *self;
+        let bytes = this.bytes.take().expect("prepared bytes");
+        Some(Arc::new(crate::raw_payloads::PairingPayload {
+            bytes,
+            epoch,
+            pending: this.sender.pending.clone(),
+            cost: this.cost,
+        }))
+    }
+}
+impl crate::raw_payloads::Output for PlayerSender {
+    fn transport(&self) -> &Arc<Transport> {
+        self.payload_transport()
+    }
+    fn side(&self) -> Side {
+        Side::Server
+    }
+    fn limits(
+        &self,
+        _: sunrise_protocol::payload_negotiation::Phase,
+        _: &PayloadId,
+    ) -> Result<(sunrise_protocol::connection::Framing, usize), PayloadSendError> {
+        Ok((self.payload_framing(), self.payload_capacity()))
+    }
+    fn prepare(
+        &self,
+        body: Vec<u8>,
+        id: &PayloadId,
+    ) -> Result<Box<dyn crate::raw_payloads::PreparedSend>, PayloadSendError> {
+        self.prepare_payload(body, id)
+            .map(|prepared| Box::new(prepared) as Box<dyn crate::raw_payloads::PreparedSend>)
+    }
+    fn disconnect(&self, reason: &crate::text::Text) {
+        PlayerSender::disconnect(self, super::data::component_nbt(&reason.component()));
+    }
+    #[cfg(any(test, feature = "test-payload-probe"))]
+    fn diagnostics(&self) -> Box<dyn Fn() -> String + Send + Sync> {
+        self.payload_diagnostic_observer()
     }
 }
 impl Drop for PreparedPayload {
@@ -1452,7 +1501,11 @@ fn login_and_configure(
     }
     c.reader.set_read_timeout(Some(READ_TIMEOUT)).map_err(e)?;
     // Configuration.
-    let payload_transport = Transport::new(shared.payload_local.clone(), Side::Server);
+    let payload_transport = Transport::new(
+        shared.payload_local.clone(),
+        Side::Server,
+        crate::lan::PAYLOAD_RECORD_OVERHEAD,
+    );
     let mut config_io =
         ConfigIo::new(c, payload_transport.clone(), shared.events.clone()).map_err(e)?;
     let c = &mut config_io;
@@ -4212,7 +4265,11 @@ mod outgoing_budget_tests {
     #[test]
     fn a_pairing_attachment_keeps_its_prepaid_credit_and_play_epoch() {
         for stale in [false, true] {
-            let transport = Transport::capture(crate::raw_payloads::Side::Server).unwrap();
+            let transport = Transport::capture(
+                crate::raw_payloads::Side::Server,
+                crate::lan::PAYLOAD_RECORD_OVERHEAD,
+            )
+            .unwrap();
             transport
                 .accept(transport.local.manifest.entries())
                 .unwrap();

@@ -733,7 +733,11 @@ pub(in crate::game) mod tests {
             // server startup does before any block-entity load callbacks need it.
             game.native_lifecycle_open_started();
             game.native_lifecycle_world_ready();
-            let transport = Transport::capture(Side::Server).unwrap();
+            let transport = Transport::capture(
+                Side::Server,
+                crate::raw_payloads::connection::record_overhead(&[]),
+            )
+            .unwrap();
             transport
                 .accept(transport.local.manifest.entries())
                 .unwrap();
