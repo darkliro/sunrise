@@ -4648,6 +4648,7 @@ dependencies = [
  "sunrise-command",
  "sunrise-core",
  "sunrise-dualsense",
+ "sunrise-entity-data",
  "sunrise-friends",
  "sunrise-gameplay",
  "sunrise-hooks",
@@ -4754,6 +4755,7 @@ dependencies = [
  "sunrise-client-render",
  "sunrise-command",
  "sunrise-core",
+ "sunrise-entity-data",
  "sunrise-hooks",
  "sunrise-items",
  "sunrise-java-properties",
@@ -4920,7 +4922,10 @@ dependencies = [
 name = "sunrise-entity-data"
 version = "0.1.0"
 dependencies = [
+ "sunrise-client-core",
  "sunrise-core",
+ "sunrise-mod-vocab",
+ "sunrise-world",
 ]
 
 [[package]]

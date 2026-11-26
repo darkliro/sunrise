@@ -1564,9 +1564,10 @@ impl Game<'_> {
                     std::panic::resume_unwind(payload);
                 }
                 if let Some(hit) = paused_hurt
+                    && let Ok(hit) = hit.downcast::<sunrise_client::mobs::PausedMobHurt>()
                     && let Some(index) = self.mob_index.find(&self.mobs, hit.victim)
                 {
-                    self.paused_mob_hurt = Some(hit);
+                    self.paused_mob_hurt = Some(hit as Box<dyn std::any::Any>);
                     self.finish_mob_damage_at(index);
                 }
             }

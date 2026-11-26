@@ -29,6 +29,7 @@ sunrise-client-render = { path = "../sunrise-client-render" }
 sunrise-command = { path = "../sunrise-command" }
 sunrise-items = { path = "../sunrise-items" }
 sunrise-core = { path = "../sunrise-core" }
+sunrise-entity-data = { path = "../sunrise-entity-data" }
 # OptiFine-format pack files: custom entity models, random entity textures.
 sunrise-optifine = { path = "../sunrise-optifine" }
 # The server thread ahead of the workers (MinecraftServer.spin's Thread.setPriority).

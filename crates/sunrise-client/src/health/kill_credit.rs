@@ -1,9 +1,8 @@
 //! The hit-local kill-credit loan, separate from the level's block/random loan.
 use super::{Attack, Hurting};
-use crate::{
-    items::ItemStack,
-    mobs::{Mob, Who},
-};
+use crate::items::ItemStack;
+use sunrise_client_core::who::Who;
+use sunrise_entity_data::{Hurtable, damage::Damage};
 
 /// A host's record of each mob's `LivingEntity.lastHurtByPlayer` UUID, by mob id.
 pub trait PlayerMemory {
@@ -32,7 +31,7 @@ impl PlayerResolver<'_> {
         let ints = crate::lan::playerdata::uuid_ints(uuid);
         if self
             .in_place
-            .is_some_and(|acting| crate::mobs::tame::owned_by(Some(ints), acting))
+            .is_some_and(|acting| ints == acting || (ints == [0, 0, 0, 1] && acting == [0; 4]))
         {
             return Some(None);
         }
@@ -48,13 +47,13 @@ impl PlayerResolver<'_> {
 /// game's narrow per-hit context; it does not expose the game through a level host.
 pub trait KnockbackCredit {
     /// Commit accepted-hit player responsibility before the default push.
-    fn accepted_mob_hit(&mut self, mob: &mut Mob);
+    fn accepted_mob_hit(&mut self, mob: &mut dyn Hurtable);
     /// The canonical UUID of the living entity `source` names for villager gossip.
-    fn hurt_by_uuid(&self, source: &crate::mobs::Damage) -> Option<[i32; 4]>;
+    fn hurt_by_uuid(&self, source: &Damage) -> Option<[i32; 4]>;
     /// `LivingEntity.resolvePlayerResponsibleForDamage`: commit this hit's
     /// player/tamed-wolf responsibility (if any) and report whether a live
     /// player is responsible while the 100-tick memory timer is active.
-    fn resolve_player_responsible(&mut self, mob: &mut Mob) -> bool;
+    fn resolve_player_responsible(&mut self, mob: &mut dyn Hurtable) -> bool;
     /// The credit entity and its main hand. Zero means a genuinely unresolved credit.
     fn snapshot<'a>(
         &'a self,
@@ -95,7 +94,7 @@ pub(super) fn from_memory<'a>(
     };
     let credited = match mob.recent_hurt_by() {
         Some(Who::Player) => attack.player_uuid.is_some(),
-        Some(Who::Mob(id)) => mob.ai.last_hurt_by_player <= 0 && id as i32 == attack.attacker,
+        Some(Who::Mob(id)) => mob.hurt_by_player_ticks() <= 0 && id as i32 == attack.attacker,
         None => false,
     };
     if credited {

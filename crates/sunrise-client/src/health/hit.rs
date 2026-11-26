@@ -7,7 +7,7 @@ pub enum Hurting<'a> {
     /// A player, by its entity id.
     Player(i32, HurtSource<'a>),
     /// A mob, and what hurts it.
-    Mob(&'a crate::mobs::Mob, &'a crate::mobs::Damage),
+    Mob(&'a dyn Hurtable, &'a Damage),
     /// The ender dragon, by its entity id.
     Dragon(i32, HurtSource<'a>),
     /// An armor stand, by its entity id, for sweep knockback.
@@ -104,7 +104,7 @@ pub struct HitLend<'a> {
     body: LentBody<'a>,
 }
 enum LentBody<'a> {
-    Mob(&'a mut crate::mobs::Mob),
+    Mob(&'a mut dyn Hurtable),
     /// The player in place, with the effects and stacks the game keeps beside its body.
     Player {
         motion: &'a mut PlayerMotion,
@@ -150,7 +150,7 @@ pub fn hit_host_listened() -> bool {
     .any(listened)
 }
 impl<'a> HitLend<'a> {
-    pub fn mob(mob: &'a mut crate::mobs::Mob) -> Option<Self> {
+    pub fn mob(mob: &'a mut dyn Hurtable) -> Option<Self> {
         Some(Self {
             body: LentBody::Mob(mob),
         })
@@ -182,7 +182,7 @@ impl<'a> HitLend<'a> {
     }
     fn id(&self) -> i32 {
         match &self.body {
-            LentBody::Mob(mob) => mob.id as i32,
+            LentBody::Mob(mob) => mob.id(),
             LentBody::Player { motion, .. } => motion.entity_id,
             LentBody::Parked(guest) => guest.entity_id,
         }
@@ -193,7 +193,10 @@ impl<'a> HitLend<'a> {
         &mut self,
     ) -> Option<([f64; 3], &mut sunrise_core::random::LegacyRandom)> {
         let (position, random) = match &mut self.body {
-            LentBody::Mob(mob) => (mob.position, &mut mob.random),
+            LentBody::Mob(mob) => {
+                let position = mob.position();
+                (position, mob.random())
+            }
             LentBody::Player { motion, .. } => (motion.position, &mut *motion.random),
             LentBody::Parked(_) => return None,
         };
@@ -201,7 +204,7 @@ impl<'a> HitLend<'a> {
     }
     fn body(&self) -> LivingBody<'_> {
         match &self.body {
-            LentBody::Mob(mob) => LivingBody::Mob(mob),
+            LentBody::Mob(mob) => LivingBody::Mob(&**mob),
             LentBody::Player {
                 motion,
                 effects,
@@ -221,7 +224,7 @@ impl<'a> HitLend<'a> {
     fn reborrow(&mut self) -> HitLend<'_> {
         HitLend {
             body: match &mut self.body {
-                LentBody::Mob(mob) => LentBody::Mob(mob),
+                LentBody::Mob(mob) => LentBody::Mob(&mut **mob),
                 LentBody::Player {
                     motion,
                     effects,
@@ -327,7 +330,7 @@ impl<'a> HitEffects<'a> {
 #[derive(Clone, Copy)]
 pub enum LivingBody<'a> {
     /// A mob.
-    Mob(&'a crate::mobs::Mob),
+    Mob(&'a dyn Hurtable),
     /// A player: the one in place, a guest's record, or the body a hit's adapter lends.
     Player(PlayerBody<'a>),
     /// An armor stand.
@@ -437,7 +440,7 @@ pub fn player_equipment<'a>(
 }
 /// The registry keys of the living types that are not mob types (`EntityType.PLAYER`,
 /// `ARMOR_STAND`, `ENDER_DRAGON`), resolved with the accepted resources, as a mob type keeps its
-/// own ([`crate::mobs::MobType::type_key`]).
+/// own (`MobType::type_key`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct LivingTypeKeys {
     pub player: Option<mod_api::EntityTypeKey>,
@@ -612,7 +615,7 @@ pub struct DamageLevel<'a> {
     chunks: &'a crate::chunk_map::ChunkMap,
     air: sunrise_world::registry::BlockStateId,
     game_time: i64,
-    paused_mob_hurt: Option<&'a mut Option<Box<crate::mobs::PausedMobHurt>>>,
+    paused_mob_hurt: Option<&'a mut Option<Box<dyn std::any::Any>>>,
     registry: &'a sunrise_world::registry::BlockRegistry,
     tags: Option<&'a crate::items::Items>,
     block_registries: Option<&'a crate::command::args::Registries>,
@@ -646,7 +649,7 @@ pub struct DamageLevel<'a> {
     causing: i32,
     /// The world's frozen mob variant tables, for variant-backed hurt and death sounds
     /// (`Wolf.getHurtSound`/`getDeathSound`, `Cat.getHurtSound`/`getDeathSound`).
-    variants: Option<&'a crate::mobs::variants::VariantTables>,
+    variants: Option<&'a dyn std::any::Any>,
 }
 impl<'a> DamageLevel<'a> {
     /// The level of `world`, whose blocks `registry` names.
@@ -745,11 +748,11 @@ impl<'a> DamageLevel<'a> {
         self.mob_uuids?.get(&id).copied()
     }
     /// Attach the world's frozen mob variant tables for variant-backed hurt and death sounds.
-    pub fn with_variants(mut self, variants: &'a crate::mobs::variants::VariantTables) -> Self {
+    pub fn with_variants(mut self, variants: &'a dyn std::any::Any) -> Self {
         self.variants = Some(variants);
         self
     }
-    pub(crate) fn variants(&self) -> Option<&crate::mobs::variants::VariantTables> {
+    pub(crate) fn variants(&self) -> Option<&dyn std::any::Any> {
         self.variants
     }
     /// The same level, for a shorter borrow.
@@ -784,10 +787,7 @@ impl<'a> DamageLevel<'a> {
         }
     }
     /// The owner's slot for a hit that must release its borrows before resuming.
-    pub fn with_mob_hurt_handoff(
-        mut self,
-        paused: &'a mut Option<Box<crate::mobs::PausedMobHurt>>,
-    ) -> Self {
+    pub fn with_mob_hurt_handoff(mut self, paused: &'a mut Option<Box<dyn std::any::Any>>) -> Self {
         self.paused_mob_hurt = Some(paused);
         self
     }
@@ -796,16 +796,16 @@ impl<'a> DamageLevel<'a> {
         self.paused_mob_hurt.is_some()
     }
 
-    pub(crate) fn pause_mob_hurt(&mut self, hit: crate::mobs::PausedMobHurt) {
+    pub(crate) fn pause_mob_hurt(&mut self, hit: Box<dyn std::any::Any>) {
         let slot = self
             .paused_mob_hurt
             .as_deref_mut()
             .expect("owning hit slot");
         debug_assert!(slot.is_none());
-        *slot = Some(Box::new(hit));
+        *slot = Some(hit);
     }
 
-    pub(crate) fn paused_mob_hurt(&mut self) -> &mut crate::mobs::PausedMobHurt {
+    pub(crate) fn paused_mob_hurt(&mut self) -> &mut dyn std::any::Any {
         self.paused_mob_hurt
             .as_deref_mut()
             .and_then(Option::as_deref_mut)
@@ -816,9 +816,9 @@ impl<'a> DamageLevel<'a> {
         self.effects.as_ref()?.lent.as_ref().map(HitLend::id)
     }
 
-    pub(crate) fn wake_mob(&self, mob: &mut crate::mobs::Mob) {
+    pub(crate) fn wake_mob(&self, mob: &mut dyn Hurtable) {
         // Standalone hit simulations have no live bed to update.
-        crate::mobs::villager::wake(mob, self.game_time, None, None);
+        mob.wake_villager(self.game_time);
     }
 
     /// Lend the stacks worn by this hit's player victim for enchantment immunity.
@@ -858,8 +858,8 @@ impl<'a> DamageLevel<'a> {
     pub fn causing_body(&self) -> Option<LivingBody<'_>> {
         let body = self.effects.as_ref()?.lent_body()?;
         let id = match body {
-            LivingBody::Mob(mob) if mob.removed => return None,
-            LivingBody::Mob(mob) => mob.id as i32,
+            LivingBody::Mob(mob) if mob.is_removed() => return None,
+            LivingBody::Mob(mob) => mob.id(),
             LivingBody::Player(player) => player.id,
             LivingBody::Stand(_) | LivingBody::Dragon(_) => return None,
         };
@@ -919,27 +919,27 @@ impl<'a> DamageLevel<'a> {
     }
     /// `LivingEntity.baseTick`: the last tick with a positive clock still keeps the
     /// reference. Clear it at this point only if the clock was already zero.
-    pub(crate) fn tick_player_memory(&mut self, mob: &mut crate::mobs::Mob) {
-        if mob.ai.last_hurt_by_player > 0 {
-            mob.ai.last_hurt_by_player -= 1;
+    pub(crate) fn tick_player_memory(&mut self, mob: &mut dyn Hurtable) {
+        if mob.hurt_by_player_ticks() > 0 {
+            mob.set_hurt_by_player_ticks(mob.hurt_by_player_ticks() - 1);
         } else if let Some((_, memory)) = &mut self.players {
-            memory.forget(mob.id);
+            memory.forget(mob.id() as u32);
         }
     }
     /// Commit this accepted hit's responsibility at vanilla's pre-push memory point.
-    pub fn accepted_mob_hit(&mut self, mob: &mut crate::mobs::Mob, source: &crate::mobs::Damage) {
+    pub fn accepted_mob_hit(&mut self, mob: &mut dyn Hurtable, source: &Damage) {
         // The hit's own source, whatever the credit kind.
         let uuid = match (&self.credit, source.attacker) {
-            _ if mob.species() != crate::mobs::Species::Villager => None,
+            _ if !mob.is_villager() => None,
             (Credit::Loan(credit), _) => credit.hurt_by_uuid(source),
-            (_, Some(crate::mobs::Who::Player)) => self.attack.player_uuid,
-            (_, Some(crate::mobs::Who::Mob(id))) if self.attack.attacker == id as i32 => {
+            (_, Some(Who::Player)) => self.attack.player_uuid,
+            (_, Some(Who::Mob(id))) if self.attack.attacker == id as i32 => {
                 self.attack.attacker_uuid
             }
             _ => None,
         };
         if let Some(uuid) = uuid {
-            crate::mobs::villager::hurt_by(mob, source, uuid);
+            mob.villager_hurt(source, uuid);
         }
         if let Credit::Loan(credit) = &mut self.credit {
             credit.accepted_mob_hit(mob);
@@ -949,14 +949,10 @@ impl<'a> DamageLevel<'a> {
     /// hit refreshes the 100-tick timer, a tame wolf's refreshes or clears it
     /// through the credit loan, and any other source keeps the remembered player,
     /// whose reference must still resolve.
-    pub fn resolve_player_responsible(
-        &mut self,
-        mob: &mut crate::mobs::Mob,
-        source: &crate::mobs::Damage,
-    ) -> bool {
-        let by_player = source.attacker == Some(crate::mobs::Who::Player);
+    pub fn resolve_player_responsible(&mut self, mob: &mut dyn Hurtable, source: &Damage) -> bool {
+        let by_player = source.attacker == Some(Who::Player);
         if by_player {
-            mob.ai.last_hurt_by_player = 100;
+            mob.set_hurt_by_player_ticks(100);
         }
         match &mut self.credit {
             Credit::Loan(credit) => credit.resolve_player_responsible(mob),
@@ -964,7 +960,7 @@ impl<'a> DamageLevel<'a> {
                 by_player
                     || self.players.as_ref().is_some_and(|(resolver, memory)| {
                         memory
-                            .remembered(mob.id)
+                            .remembered(mob.id() as u32)
                             .is_some_and(|uuid| resolver.resolve(uuid).is_some())
                     })
             }

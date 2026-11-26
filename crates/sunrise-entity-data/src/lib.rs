@@ -15,5 +15,6 @@
 
 mod fields;
 pub use fields::{EntityFields, HasEntityFields};
+pub mod damage;
 mod hurt;
 pub use hurt::Hurtable;

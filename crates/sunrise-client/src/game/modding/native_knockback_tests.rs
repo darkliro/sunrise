@@ -146,20 +146,23 @@ fn the_bridge_names_the_attacker_and_what_it_holds() {
             mob
         };
         let by_player = Damage {
+            direct: None,
             attacker: Some(Who::Player),
             ..Damage::of(DamageKind::Generic)
         };
         let by_mob = Damage {
+            direct: None,
             attacker: Some(Who::Mob(3)),
             ..by_player
         };
         let by_nobody = Damage {
+            direct: None,
             attacker: None,
             ..by_player
         };
         let mut push = |pushed: Hurting<'_>, attack: &Attack| {
             let victim = match &pushed {
-                Hurting::Mob(mob, _) => mob.id as i32,
+                Hurting::Mob(mob, _) => mob.id(),
                 _ => 12,
             };
             let plan = game.prepare_knockback_credit(victim, None, game.combat.attack());
@@ -758,6 +761,7 @@ fn knockback_fires_and_lends_views_when_stacks_have_unprojectable_components_or_
         game.remember_mob_player_credit(42);
 
         let by_player = Damage {
+            direct: None,
             attacker: Some(Who::Player),
             ..Damage::of(DamageKind::Generic)
         };

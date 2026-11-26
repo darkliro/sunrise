@@ -8,6 +8,9 @@ description = "The entity fields a save codec and the mob simulation both read, 
 
 [dependencies]
 sunrise-core = { path = "../sunrise-core" }
+sunrise-client-core = { path = "../sunrise-client-core" }
+sunrise-world = { path = "../sunrise-world" }
+mod_api = { package = "sunrise-mod-vocab", path = "../sunrise-mod-vocab" }
 
 [lints]
 workspace = true
