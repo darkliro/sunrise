@@ -3189,3 +3189,21 @@ mod tests {
         assert_ne!(guest.menu_sent[39], guest.menu_slot(39));
     }
 }
+
+impl crate::menu::MenuGuest for Guest {
+    fn uuid(&self) -> u128 {
+        self.uuid
+    }
+    fn native_menu(&self) -> &[Option<ItemStack>] {
+        &self.native_menu
+    }
+    fn inventory(&self) -> &[Option<ItemStack>] {
+        &self.inventory
+    }
+    fn armor(&self) -> &[Option<ItemStack>; 4] {
+        &self.armor
+    }
+    fn offhand(&self) -> &Option<ItemStack> {
+        &self.offhand
+    }
+}
