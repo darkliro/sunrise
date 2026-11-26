@@ -293,14 +293,18 @@ pub fn load(folder: &Path) -> Result<Vec<&'static mod_api::__private::native::Na
 
 /// Start the fixed executable, registering checked native libraries before the engine seal.
 pub fn main() {
-    let startup = sunrise_client::entry::prepare();
-    let result = std::env::current_exe()
-        .map_err(|e| e.to_string())
-        .and_then(|exe| load(exe.parent().expect("executable parent")));
-    let libraries = result.unwrap_or_else(|error| {
+    if let Err(error) = try_main() {
         eprintln!("Sunrise: refusing native startup: {error}");
         std::process::exit(1);
-    });
+    }
+}
+
+/// Fallible entry point for [`main`], returning an error instead of exiting the process.
+pub fn try_main() -> Result<(), String> {
+    let startup = sunrise_client::entry::prepare();
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let parent = exe.parent().ok_or("executable has no parent directory")?;
+    let libraries = load(parent)?;
     let mut entries = Vec::new();
     let mut built = Vec::new();
     let mut installs = Vec::new();
@@ -316,6 +320,7 @@ pub fn main() {
         built.extend_from_slice(library.built);
     }
     crate::main_with(entries, Box::leak(built.into_boxed_slice()), startup);
+    Ok(())
 }
 
 #[cfg(test)]
