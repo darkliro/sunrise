@@ -103,11 +103,21 @@ impl<S: for<'s> From<HitSound<'s>>> SoundQueue for Vec<S> {
 pub struct HitLend<'a> {
     body: LentBody<'a>,
 }
+/// The live player a hit lends: its own random and the reads its body answers, as the
+/// player's motion state exposes them. Health names no motion type; `PlayerMotion`
+/// implements this where the movement state lives.
+pub trait PlayerHitBody {
+    fn entity_id(&self) -> i32;
+    fn position(&self) -> sunrise_core::geometry::Vec3;
+    fn random(&mut self) -> &mut sunrise_core::random::LegacyRandom;
+    fn health(&self) -> &PlayerHealth;
+    fn attributes(&self) -> &Attributes;
+}
 enum LentBody<'a> {
     Mob(&'a mut dyn Hurtable),
     /// The player in place, with the effects and stacks the game keeps beside its body.
     Player {
-        motion: &'a mut PlayerMotion,
+        motion: &'a mut dyn PlayerHitBody,
         effects: &'a crate::effects::PlayerEffects,
         equipment: PlayerEquipment<'a>,
     },
@@ -158,13 +168,13 @@ impl<'a> HitLend<'a> {
     /// `player`, if it is the attacker `attacker` (an entity id), with the `effects` and
     /// `equipment` the game keeps beside the body in place. The caller builds it only while a
     /// `HitHost` hook listens ([`hit_host_listened`]).
-    pub fn attacking_player(
-        player: Option<&'a mut PlayerMotion>,
+    pub fn attacking_player<P: PlayerHitBody>(
+        player: Option<&'a mut P>,
         attacker: i32,
         effects: &'a crate::effects::PlayerEffects,
         equipment: PlayerEquipment<'a>,
     ) -> Option<Self> {
-        let motion = player.filter(|p| p.entity_id == attacker)?;
+        let motion: &'a mut dyn PlayerHitBody = player.filter(|p| p.entity_id() == attacker)?;
         Some(Self {
             body: LentBody::Player {
                 motion,
@@ -183,7 +193,7 @@ impl<'a> HitLend<'a> {
     fn id(&self) -> i32 {
         match &self.body {
             LentBody::Mob(mob) => mob.id(),
-            LentBody::Player { motion, .. } => motion.entity_id,
+            LentBody::Player { motion, .. } => motion.entity_id(),
             LentBody::Parked(guest) => guest.entity_id,
         }
     }
@@ -197,7 +207,7 @@ impl<'a> HitLend<'a> {
                 let position = mob.position();
                 (position, mob.random())
             }
-            LentBody::Player { motion, .. } => (motion.position, &mut *motion.random),
+            LentBody::Player { motion, .. } => (motion.position(), motion.random()),
             LentBody::Parked(_) => return None,
         };
         Some(([position.x, position.y, position.z], random))
@@ -210,10 +220,10 @@ impl<'a> HitLend<'a> {
                 effects,
                 equipment,
             } => LivingBody::Player(PlayerBody {
-                id: motion.entity_id,
+                id: motion.entity_id(),
                 uuid: None,
-                health: PlayerHealthRead::Synced(&motion.health.data, motion.health.ids),
-                attributes: Some(&motion.attributes),
+                health: PlayerHealthRead::Synced(&motion.health().data, motion.health().ids),
+                attributes: Some(motion.attributes()),
                 effects: Some(effects),
                 equipment: *equipment,
                 attachments: None,
@@ -230,7 +240,7 @@ impl<'a> HitLend<'a> {
                     effects,
                     equipment,
                 } => LentBody::Player {
-                    motion,
+                    motion: &mut **motion,
                     effects,
                     equipment: *equipment,
                 },

@@ -257,7 +257,7 @@ impl FoodWorld for TickWorld<'_> {
         {
             environment
                 .events
-                .push(MotionEvent::Health(HealthEvent::StarvationDamage(amount)));
+                .push_health(HealthEvent::StarvationDamage(amount));
             *self.hurt_animation_time = self.hurt.hurt_time;
         }
         Ok(())

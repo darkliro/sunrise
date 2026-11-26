@@ -177,8 +177,8 @@ impl sunrise_client::motion::SideLevel for Game<'_> {
         Some(mod_api::BlockStates::of(self))
     }
 
-    fn variant_tables(&self) -> Option<&sunrise_client::mobs::variants::VariantTables> {
-        Some(self.world_variants())
+    fn variant_tables(&self) -> Option<&dyn std::any::Any> {
+        Some(self.world_variants() as &dyn std::any::Any)
     }
 }
 

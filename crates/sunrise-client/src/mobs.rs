@@ -3316,6 +3316,14 @@ pub struct MobWorld<'a> {
     pub border: Option<&'a sunrise_core::geometry::border::BorderGeometry>,
     pub section_writer: Option<living::section_writes::Observer>,
 }
+
+impl<'a> MobWorld<'a> {
+    /// The side's frozen variant registries, typed for the mob code: `SideLevel` keeps them
+    /// opaque so the block/side layer never names a mob type.
+    pub fn variant_tables(&self) -> Option<&'a crate::mobs::variants::VariantTables> {
+        self.side.variant_tables()?.downcast_ref()
+    }
+}
 /// The read-only decision from a registered effect's native tick Parts.
 pub struct ModEffectTick {
     /// False ends the effect before its countdown, after applying its actions.
@@ -3519,17 +3527,7 @@ pub fn infested_silverfish(random: &mut LegacyRandom, look: [f64; 3]) -> Vec<Vec
         })
         .collect()
 }
-/// `Entity.random` of a client's copy of entity `id` first seen at `position`: vanilla's is its
-/// own (`RandomSource.create()`), drawn on by nothing else; this one is seeded from the two.
-pub fn entity_random(id: u32, position: Vec3) -> LegacyRandom {
-    let mut random = LegacyRandom::new(
-        i64::from(id).wrapping_mul(0x5DEE_CE66D)
-            ^ (position.x.to_bits() as i64)
-            ^ (position.z.to_bits() as i64).rotate_left(17),
-    );
-    let _ = random.next_int();
-    random
-}
+pub use crate::motion::entity_random;
 /// The own random (`Entity.random`) of a living entity the server makes, as
 /// `LivingEntity.<init>` leaves it: its first two draws made the UUID
 /// (`Mth.createInsecureUUID`), returned here, then the kind's constructor draws its synced data and yaw in `constructor_draws`.
