@@ -14,8 +14,9 @@ use sunrise_world::native_load_context::LoopContext;
 #[cfg(test)]
 mod grindstone_part_tests;
 mod models;
+#[cfg(test)]
+mod recipe_load_tests;
 pub use models::{AnvilResult, EnchantmentRow};
-use serde_json::Value;
 use std::{collections::HashSet, path::Path, sync::Arc};
 
 /// Everything the workstation menus read, loaded once with the resources.
@@ -804,126 +805,8 @@ pub fn grindstone_experience(
     grindstone_xp_roll(grindstone_xp_base(e, input, additional), random)
 }
 
-// ---------------------------------------------------------------- smithing & stonecutting
-
-#[derive(Clone, Debug)]
-pub enum Smithing {
-    Transform {
-        id: String,
-        template: Option<Ingredient>,
-        base: Ingredient,
-        addition: Option<Ingredient>,
-        result: crate::crafting::Template,
-    },
-    Trim {
-        id: String,
-        template: Ingredient,
-        base: Ingredient,
-        addition: Ingredient,
-        pattern: crate::crafting::RecipeTrimPattern,
-    },
-}
-#[derive(Clone, Debug)]
-pub struct Stonecutting {
-    pub id: String,
-    pub input: Ingredient,
-    pub result: ItemStack,
-}
-/// One canonical parse shared by the station tables and the mod recipe view.
-#[derive(Clone, Debug)]
-pub(crate) enum ParsedStationRecipe {
-    Smithing(Smithing),
-    Stonecutting(Stonecutting),
-}
-impl ParsedStationRecipe {
-    pub(crate) fn parse(
-        id: String,
-        v: &Value,
-        ingredient: impl Fn(&Value) -> Option<Ingredient>,
-    ) -> Option<Self> {
-        match v["type"].as_str().unwrap_or("") {
-            "minecraft:smithing_transform" => {
-                // Only omitted ingredients mean empty slots; malformed present
-                // ingredients invalidate the recipe rather than becoming optional.
-                let parse_optional = |key: &str| match v.get(key) {
-                    None => Some(None),
-                    Some(value) => ingredient(value).map(Some),
-                };
-                Some(Self::Smithing(Smithing::Transform {
-                    id,
-                    template: parse_optional("template")?,
-                    base: ingredient(&v["base"])?,
-                    addition: parse_optional("addition")?,
-                    result: crate::crafting::Template::parse(&v["result"])?,
-                }))
-            }
-            "minecraft:smithing_trim" => Some(Self::Smithing(Smithing::Trim {
-                id,
-                template: ingredient(&v["template"])?,
-                base: ingredient(&v["base"])?,
-                addition: ingredient(&v["addition"])?,
-                // Use the same holder codec as item components, collapsing
-                // unstyled literal text once at the recipe boundary before
-                // publishing the typed snapshot.
-                pattern: match crate::item_data::trim::pattern_from_nbt(
-                    &crate::crafting::json_tag(v.get("pattern")?),
-                )? {
-                    crate::item_data::trim::Holder::Named(id) => {
-                        crate::crafting::RecipeTrimPattern::Reference(id.to_string())
-                    }
-                    crate::item_data::trim::Holder::Direct(pattern) => {
-                        crate::crafting::RecipeTrimPattern::Inline {
-                            asset_id: pattern.asset_id.to_string(),
-                            description: pattern.description,
-                            decal: pattern.decal,
-                        }
-                    }
-                },
-            })),
-            "minecraft:stonecutting" => Some(Self::Stonecutting(Stonecutting {
-                id,
-                input: ingredient(&v["ingredient"])?,
-                result: crate::crafting::Template::parse(&v["result"])
-                    .filter(|template| template.item.is_some())?
-                    .create(),
-            })),
-            _ => None,
-        }
-    }
-
-    pub(crate) fn rule(&self) -> crate::crafting::RecipeRule {
-        match self {
-            Self::Stonecutting(recipe) => crate::crafting::RecipeRule::Stonecutting {
-                input: recipe.input.clone(),
-                result: recipe.result.clone(),
-            },
-            Self::Smithing(Smithing::Transform {
-                template,
-                base,
-                addition,
-                result,
-                ..
-            }) => crate::crafting::RecipeRule::SmithingTransform {
-                template: template.clone(),
-                base: base.clone(),
-                addition: addition.clone(),
-                result: result.view(),
-            },
-            Self::Smithing(Smithing::Trim {
-                template,
-                base,
-                addition,
-                pattern,
-                ..
-            }) => crate::crafting::RecipeRule::SmithingTrim {
-                template: template.clone(),
-                base: base.clone(),
-                addition: addition.clone(),
-                pattern: pattern.clone(),
-            },
-        }
-    }
-}
+pub(crate) use crate::crafting::ParsedStationRecipe;
+pub use crate::crafting::{Smithing, Stonecutting};
 #[derive(Clone, Default)]
 pub struct StationRecipes {
     pub smithing: Vec<Smithing>,
@@ -1214,6 +1097,7 @@ pub fn apply_trim(
 mod tests {
     use super::*;
     use crate::enchant::tests::{sample, sample_items};
+    use serde_json::Value;
     use std::fs;
     use sunrise_core::nbt::Tag;
 
