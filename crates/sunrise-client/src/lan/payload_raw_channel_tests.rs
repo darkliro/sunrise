@@ -1,101 +1,18 @@
 //! Raw plugin channels against a vanilla-shaped peer (no Sunrise offer): sends,
 //! fan-out to every declaring mod in load order, the vanilla size limits in both
 //! directions, undeclared channels and the load-time collision refusal.
-use super::*;
 use crate::lan::{NetEvent, PlayerSender};
-use mod_api::{Hooks, IPayloadContext, IPayloadHandler, ModEntry, PayloadBytes, Registrar};
-use sunrise_protocol::packets::{custom_payload::CustomPayload, play};
-
-pub(super) const CHANNEL: &str = "voicechat:secret";
-const SEND_ONLY: &str = "bungeecord:main";
-
-struct Listener;
-impl IPayloadHandler for Listener {
-    fn handle(
-        &self,
-        _: PayloadBytes,
-        _: &mut dyn IPayloadContext,
-    ) -> Result<(), mod_api::PayloadHandleError> {
-        Ok(())
-    }
-}
-struct Declares {
-    receives: bool,
-    send_only: bool,
-}
-#[mod_api::__subscriptions]
-impl Hooks for Declares {
-    fn register(&self, registrar: &mut dyn Registrar, _: &mod_api::RegistrationContext) {
-        let mut payloads = registrar.payload_handlers();
-        let mut raw = payloads.registrar("1");
-        if self.receives {
-            raw.play_raw(PayloadId(CHANNEL.into()), Some(Arc::new(Listener)));
-        }
-        if self.send_only {
-            raw.play_raw(PayloadId(SEND_ONLY.into()), None);
-        }
-    }
-}
-struct Typed;
-impl IPayloadHandler for Typed {
-    fn handle(
-        &self,
-        _: PayloadBytes,
-        _: &mut dyn IPayloadContext,
-    ) -> Result<(), mod_api::PayloadHandleError> {
-        Ok(())
-    }
-}
-#[mod_api::__subscriptions]
-impl Hooks for Typed {
-    fn register(&self, registrar: &mut dyn Registrar, _: &mod_api::RegistrationContext) {
-        registrar
-            .payload_handlers()
-            .registrar("1")
-            .play_to_server(PayloadId(CHANNEL.into()), Arc::new(Typed));
-    }
-}
-
-/// Two receiving mods and a send-only one, with a vanilla peer admitted
-/// without an offer, as `finish_without_offer` admits it.
-pub(super) fn with_vanilla_peer(run: impl FnOnce(Arc<Transport>)) {
-    let mods = vec![
-        ModEntry::new(
-            "voicechat",
-            Box::new(Declares {
-                receives: true,
-                send_only: false,
-            }),
-        ),
-        ModEntry::new(
-            "voicebridge",
-            Box::new(Declares {
-                receives: true,
-                send_only: true,
-            }),
-        ),
-    ];
-    mod_platform::testing::with_mods(mods.into(), || {
-        mod_platform::__private::part_tests::install_parts_fixture(mod_api::__private::mods())
-            .unwrap();
-        let transport = Transport::capture(Side::Server).unwrap();
-        assert!(
-            !transport.local.has_mod_declarations(),
-            "raw channels are never offered"
-        );
-        assert!(transport.connection.is_some(), "raw-only still keeps state");
-        transport.accept(&[]).unwrap();
-        transport.finish_configuration().unwrap();
-        run(transport)
-    });
-}
-
-pub(super) fn serverbound(channel: &str, len: usize) -> CustomPayload {
-    CustomPayload {
-        channel: channel.into(),
-        data: vec![7; len],
-    }
-}
+use crate::raw_payloads::vanilla_peer_support::{
+    CHANNEL, Declares, SEND_ONLY, Typed, serverbound, with_vanilla_peer,
+};
+use crate::raw_payloads::*;
+use mod_api::{
+    Hooks, IPayloadContext, IPayloadHandler, ModEntry, PayloadBytes, PayloadId, PayloadSendError,
+    Registrar,
+};
+use std::sync::Arc;
+use sunrise_protocol::packets::play;
+use sunrise_protocol::payload_negotiation::Phase;
 
 #[test]
 fn a_raw_channel_reaches_every_declaring_mod_in_load_order() {
@@ -316,7 +233,9 @@ fn network_raw_failures_drop_only_the_failing_copy() {
         mod_platform::testing::with_mods(mods.into(), || {
             mod_platform::__private::part_tests::install_parts_fixture(mod_api::__private::mods())
                 .unwrap();
-            let transport = Transport::capture(Side::Server).unwrap();
+            let transport =
+                Transport::capture(Side::Server, crate::raw_payloads::TEST_RECORD_OVERHEAD)
+                    .unwrap();
             transport.accept(&[]).unwrap();
             transport.finish_configuration().unwrap();
             let (sender, _) = PlayerSender::payload_executor_test_sender(transport.clone());

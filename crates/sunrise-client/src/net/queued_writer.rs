@@ -69,6 +69,11 @@ impl PreparedPayload {
             .map_err(|_| PayloadSendError::Disconnected)
     }
 }
+impl crate::raw_payloads::PreparedSend for PreparedPayload {
+    fn publish(self: Box<Self>) -> std::result::Result<(), PayloadSendError> {
+        (*self).publish()
+    }
+}
 enum PrepareFailure {
     Closed,
     Full,

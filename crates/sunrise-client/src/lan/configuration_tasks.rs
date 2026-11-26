@@ -745,3 +745,18 @@ mod tests {
         assert_eq!(session.result(), Some(Ok(())));
     }
 }
+
+impl crate::raw_payloads::ConfigurationTask for Session {
+    fn running_ordinal_for_type(
+        &self,
+        task_type: &mod_api::Identifier,
+    ) -> Result<usize, ConfigurationTaskError> {
+        Session::running_ordinal_for_type(self, task_type)
+    }
+    fn finish_ordinal_under_epoch(&self, ordinal: usize) {
+        Session::finish_ordinal_under_epoch(self, ordinal)
+    }
+    fn finish_type(&self, task_type: &mod_api::Identifier) -> Result<(), ConfigurationTaskError> {
+        Session::finish_type(self, task_type)
+    }
+}

@@ -1,31 +1,60 @@
 //! Physical reply targets usable by either receiving executor without borrowing Game.
-use super::{Side, Transport, connection::Epoch, encode, encoded_len};
-use crate::{
-    lan::{PlayerSender, config_payloads::ConfigSender},
-    net::{Event, PreparedPayload, queued_writer::QueuedWriter},
-};
+//!
+//! The endpoint knows the raw-payload rules (authority, size limits, droppable
+//! queues, framing preflight) but nothing about who owns the other end: a solo
+//! client session and a hosted guest both implement [`Output`].
+use super::{Side, Transport, connection::Epoch, encode, encoded_len, pairing::PairingPayload};
 use mod_api::{PayloadBytes, PayloadFrameStage, PayloadId, PayloadSendError, Text};
-use std::sync::{
-    Arc, Mutex,
-    atomic::{AtomicBool, Ordering},
-};
+use std::sync::{Arc, Weak};
 use sunrise_protocol::{connection::Framing, frame, payload_negotiation::Phase};
 
+/// The write side of one physical connection: where a prepared reply goes.
+pub trait Output: Send + Sync {
+    fn transport(&self) -> &Arc<Transport>;
+    fn side(&self) -> Side;
+    /// Frame limits and backpressure capacity for a send of `id` in `phase`, or the
+    /// refusal when this output no longer accepts that phase.
+    fn limits(&self, phase: Phase, id: &PayloadId) -> Result<(Framing, usize), PayloadSendError>;
+    /// Reserve an already-framed body; the result publishes it after the handler commits.
+    fn prepare(
+        &self,
+        body: Vec<u8>,
+        id: &PayloadId,
+    ) -> Result<Box<dyn PreparedSend>, PayloadSendError>;
+    /// Close this physical connection for `reason`.
+    fn disconnect(&self, reason: &crate::text::Text);
+    /// Per-endpoint diagnostics for the payload probe, never retaining the owner.
+    #[cfg(any(test, feature = "test-payload-probe"))]
+    fn diagnostics(&self) -> Box<dyn Fn() -> String + Send + Sync>;
+}
+
+/// A reserved outgoing frame: publishing it is the only thing a reply can do.
+pub trait PreparedSend: Send {
+    fn publish(self: Box<Self>) -> Result<(), PayloadSendError>;
+    /// Hand the reservation and its framed bytes to a pairing bundle. Only a
+    /// hosted guest's play output frames bodies that way.
+    fn into_pairing(self: Box<Self>, _epoch: Arc<Epoch>) -> Option<Arc<PairingPayload>> {
+        None
+    }
+}
+
+/// The configuration task a handler finishes, named without its host type.
+pub trait ConfigurationTask: Send + Sync {
+    fn running_ordinal_for_type(
+        &self,
+        task_type: &mod_api::Identifier,
+    ) -> Result<usize, mod_api::ConfigurationTaskError>;
+    fn finish_ordinal_under_epoch(&self, ordinal: usize);
+    fn finish_type(
+        &self,
+        task_type: &mod_api::Identifier,
+    ) -> Result<(), mod_api::ConfigurationTaskError>;
+}
+
 #[derive(Clone)]
-pub struct Endpoint(Target);
-#[derive(Clone)]
-enum Target {
-    Client {
-        writer: Arc<Mutex<Option<QueuedWriter>>>,
-        configuring: Arc<AtomicBool>,
-        transport: Arc<Transport>,
-        events: crate::net::ingress::Producer<Event>,
-    },
-    Server(PlayerSender),
-    Configuration {
-        sender: ConfigSender,
-        session: Option<std::sync::Weak<crate::lan::configuration_tasks::Session>>,
-    },
+pub struct Endpoint {
+    output: Arc<dyn Output>,
+    session: Option<Weak<dyn ConfigurationTask>>,
 }
 /// Retains no endpoint, sender, producer, writer, transport or payload lease.
 #[cfg(any(test, feature = "test-payload-probe"))]
@@ -52,8 +81,8 @@ impl Observation {
     }
 }
 pub enum Prepared {
-    Client(PreparedPayload),
-    Server(crate::lan::conn::PreparedPayload),
+    /// A reply a physical output reserved.
+    Frame(Box<dyn PreparedSend>),
     /// A `Droppable` send: it reserves nothing, and publication queues it for the writer.
     Droppable(
         Arc<super::droppable::Queue>,
@@ -64,95 +93,58 @@ pub enum Prepared {
 impl Prepared {
     pub fn publish(self) -> Result<(), PayloadSendError> {
         match self {
-            Self::Client(send) => send.publish(),
-            Self::Server(send) => send.publish(),
+            Self::Frame(send) => send.publish(),
             Self::Droppable(queue, counters, body) => {
                 queue.push(std::time::Instant::now(), &counters, body);
                 Ok(())
             }
         }
     }
-    /// Extract a server `PreparedPayload` as a `Body::Prepared` for inclusion inside
-    /// an entity pairing bundle.
-    pub(crate) fn into_prepared_body(self, epoch: Arc<Epoch>) -> Option<crate::lan::Body> {
+    /// Extract a hosted guest's prepared reservation for inclusion inside an entity
+    /// pairing bundle. Other outputs produce none.
+    pub(crate) fn into_pairing(self, epoch: Arc<Epoch>) -> Option<Arc<PairingPayload>> {
         match self {
-            Self::Server(prepared) => Some(prepared.into_prepared_body(epoch)),
-            Self::Client(_) | Self::Droppable(..) => None,
+            Self::Frame(send) => send.into_pairing(epoch),
+            Self::Droppable(..) => None,
         }
     }
 }
 impl Endpoint {
-    pub(crate) fn client(
-        writer: Arc<Mutex<Option<QueuedWriter>>>,
-        configuring: Arc<AtomicBool>,
-        transport: Arc<Transport>,
-        events: crate::net::ingress::Producer<Event>,
-    ) -> Self {
-        Self(Target::Client {
-            writer,
-            configuring,
-            transport,
-            events,
-        })
-    }
-    pub fn server(sender: PlayerSender) -> Self {
-        Self(Target::Server(sender))
-    }
-    pub fn configuration(
-        sender: ConfigSender,
-        session: Option<std::sync::Weak<crate::lan::configuration_tasks::Session>>,
-    ) -> Self {
-        Self(Target::Configuration { sender, session })
-    }
-    pub fn configuration_session(
-        &self,
-    ) -> Option<&std::sync::Weak<crate::lan::configuration_tasks::Session>> {
-        match &self.0 {
-            Target::Configuration { session, .. } => session.as_ref(),
-            _ => None,
+    pub fn new(output: impl Output + 'static) -> Self {
+        Self {
+            output: Arc::new(output),
+            session: None,
         }
+    }
+    /// A hosted guest's play connection.
+    pub fn server(output: impl Output + 'static) -> Self {
+        Self::new(output)
+    }
+    /// A hosted guest's configuration connection, with the task session it finishes.
+    pub fn configuration(
+        output: impl Output + 'static,
+        session: Option<Weak<dyn ConfigurationTask>>,
+    ) -> Self {
+        Self {
+            output: Arc::new(output),
+            session,
+        }
+    }
+    pub fn configuration_session(&self) -> Option<&Weak<dyn ConfigurationTask>> {
+        self.session.as_ref()
     }
     pub fn side(&self) -> Side {
-        match self.0 {
-            Target::Client { .. } => Side::Client,
-            _ => Side::Server,
-        }
+        self.output.side()
     }
     pub fn transport(&self) -> &Arc<Transport> {
-        match &self.0 {
-            Target::Client { transport, .. } => transport,
-            Target::Server(sender) => sender.payload_transport(),
-            Target::Configuration { sender, .. } => sender.payload_transport(),
-        }
+        self.output.transport()
     }
     #[cfg(any(test, feature = "test-payload-probe"))]
     pub(super) fn observation(&self) -> Observation {
-        let diagnostics: Box<dyn Fn() -> String + Send + Sync> = match &self.0 {
-            Target::Client { writer, .. } => {
-                let writer = Arc::downgrade(writer);
-                Box::new(move || {
-                    let Some(writer) = writer.upgrade() else {
-                        return "writer handle owner dropped".into();
-                    };
-                    match writer.try_lock() {
-                        Ok(w) => {
-                            let current = w.clone();
-                            drop(w);
-                            current
-                                .map(|w| w.diagnostics())
-                                .unwrap_or_else(|| "writer absent".into())
-                        }
-                        Err(_) => "writer handle busy/poisoned".into(),
-                    }
-                })
-            }
-            Target::Server(sender) => sender.payload_diagnostic_observer(),
-            Target::Configuration { .. } => Box::new(|| "configuration sender not observed".into()),
-        };
         Observation {
             transport: Arc::downgrade(self.transport()),
             side: self.side(),
-            diagnostics,
+            diagnostics: self.output.diagnostics(),
         }
     }
     /// Peer authority is checked before bytes are copied. Publication belongs to the root.
@@ -180,39 +172,10 @@ impl Endpoint {
         {
             return self.prepare_droppable(epoch, id, bytes, len, counters);
         }
-        match &self.0 {
-            Target::Client {
-                writer,
-                configuring,
-                ..
-            } => {
-                if configuring.load(Ordering::Acquire) != (epoch.phase == Phase::Configuration) {
-                    return Err(PayloadSendError::WrongProtocol(id.clone()));
-                }
-                let writer = writer
-                    .lock()
-                    .unwrap()
-                    .as_ref()
-                    .cloned()
-                    .ok_or(PayloadSendError::Disconnected)?;
-                preflight(writer.framing(), writer.payload_capacity(), len, id)?;
-                writer
-                    .prepare_payload(encode(epoch.phase, self.side(), id, bytes), id)
-                    .map(Prepared::Client)
-            }
-            Target::Server(sender) => {
-                preflight(sender.payload_framing(), sender.payload_capacity(), len, id)?;
-                sender
-                    .prepare_payload(encode(epoch.phase, self.side(), id, bytes), id)
-                    .map(Prepared::Server)
-            }
-            Target::Configuration { sender, .. } => {
-                preflight(sender.framing(), sender.payload_capacity(), len, id)?;
-                sender
-                    .prepare_payload(encode(epoch.phase, self.side(), id, bytes), id)
-                    .map(Prepared::Client)
-            }
-        }
+        let (framing, capacity) = self.output.limits(epoch.phase, id)?;
+        preflight(framing, capacity, len, id)?;
+        let body = encode(epoch.phase, self.side(), id, bytes);
+        self.output.prepare(body, id).map(Prepared::Frame)
     }
     /// A `Droppable` send takes no reservation: it is bounded by its own queue. Frame limits
     /// still refuse here, so no waiting send can fail framing later.
@@ -224,25 +187,7 @@ impl Endpoint {
         len: usize,
         counters: &Arc<mod_api::__private::game::DropCounters>,
     ) -> Result<Prepared, PayloadSendError> {
-        let framing = match &self.0 {
-            Target::Client {
-                writer,
-                configuring,
-                ..
-            } => {
-                if configuring.load(Ordering::Acquire) != (epoch.phase == Phase::Configuration) {
-                    return Err(PayloadSendError::WrongProtocol(id.clone()));
-                }
-                let writer = writer.lock().unwrap();
-                writer
-                    .as_ref()
-                    .filter(|writer| writer.accepts_packets())
-                    .ok_or(PayloadSendError::Disconnected)?
-                    .framing()
-            }
-            Target::Server(sender) => sender.payload_framing(),
-            Target::Configuration { sender, .. } => sender.framing(),
-        };
+        let (framing, _) = self.output.limits(epoch.phase, id)?;
         preflight(framing, usize::MAX, len, id)?;
         let queue = self
             .transport()
@@ -265,35 +210,7 @@ impl Endpoint {
             )
         });
         self.transport().close();
-        match &self.0 {
-            Target::Client {
-                writer,
-                configuring,
-                events,
-                ..
-            } => {
-                let writer = writer.lock().unwrap();
-                let _ = events.send_terminal(Event::Disconnected {
-                    reason: reason.plain(),
-                    key: None,
-                    from_server: false,
-                    after_login: true,
-                });
-                if let Some(writer) = writer.as_ref() {
-                    if configuring.load(Ordering::Acquire) {
-                        writer.shutdown();
-                    } else {
-                        writer.close_after_pending();
-                    }
-                }
-            }
-            Target::Server(sender) => {
-                sender.disconnect(crate::lan::data::component_nbt(&reason.component()))
-            }
-            Target::Configuration { sender, .. } => {
-                sender.disconnect(crate::lan::data::component_nbt(&reason.component()))
-            }
-        }
+        self.output.disconnect(&reason);
     }
 }
 fn preflight(

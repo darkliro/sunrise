@@ -88,6 +88,37 @@ impl EngineChannels {
     }
 }
 
+impl crate::raw_payloads::Output for ConfigSender {
+    fn transport(&self) -> &Arc<Transport> {
+        &self.transport
+    }
+    fn side(&self) -> crate::raw_payloads::Side {
+        crate::raw_payloads::Side::Server
+    }
+    fn limits(
+        &self,
+        _: Phase,
+        _: &PayloadId,
+    ) -> Result<(sunrise_protocol::connection::Framing, usize), PayloadSendError> {
+        Ok((self.framing(), self.payload_capacity()))
+    }
+    fn prepare(
+        &self,
+        body: Vec<u8>,
+        id: &PayloadId,
+    ) -> Result<Box<dyn crate::raw_payloads::PreparedSend>, PayloadSendError> {
+        ConfigSender::prepare_payload(self, body, id)
+            .map(|prepared| Box::new(prepared) as Box<dyn crate::raw_payloads::PreparedSend>)
+    }
+    fn disconnect(&self, reason: &crate::text::Text) {
+        ConfigSender::disconnect(self, crate::lan::data::component_nbt(&reason.component()));
+    }
+    #[cfg(any(test, feature = "test-payload-probe"))]
+    fn diagnostics(&self) -> Box<dyn Fn() -> String + Send + Sync> {
+        Box::new(|| "configuration sender not observed".into())
+    }
+}
+
 pub(super) struct ConfigIo<'a> {
     connection: &'a mut Connection,
     pub sender: Option<ConfigSender>,
@@ -182,7 +213,9 @@ impl<'a> ConfigIo<'a> {
             crate::raw_payloads::Classified::Application(incoming) => {
                 let endpoint = crate::raw_payloads::Endpoint::configuration(
                     sender.clone(),
-                    self.configuration_session.clone(),
+                    self.configuration_session.clone().map(|session| {
+                        session as std::sync::Weak<dyn crate::raw_payloads::ConfigurationTask>
+                    }),
                 );
                 crate::raw_payloads::dispatch(
                     incoming,

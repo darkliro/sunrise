@@ -27,7 +27,11 @@ fn accepted(local: &Local, peer: Option<&Manifest>) -> Vec<negotiation::Entry> {
 
 /// A connection in play after accepting `entries`.
 fn playing(local: &Arc<Local>, side: Side, entries: &[negotiation::Entry]) -> Arc<Transport> {
-    let transport = Transport::new(local.clone(), side);
+    let transport = Transport::new(
+        local.clone(),
+        side,
+        crate::raw_payloads::TEST_RECORD_OVERHEAD,
+    );
     transport.accept(entries).unwrap();
     transport.finish_configuration().unwrap();
     transport
@@ -161,7 +165,11 @@ fn a_negotiated_engine_message_reaches_the_engine_decoder_and_nothing_else_does(
         })
     ));
     // Play only: during configuration the channel is not the engine's.
-    let configuring = Transport::new(local.clone(), Side::Client);
+    let configuring = Transport::new(
+        local.clone(),
+        Side::Client,
+        crate::raw_payloads::TEST_RECORD_OVERHEAD,
+    );
     configuring.accept(&both).unwrap();
     assert!(matches!(
         Incoming::classify(&configuring, Phase::Configuration, sync_packet()),

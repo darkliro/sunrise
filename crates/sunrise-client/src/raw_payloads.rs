@@ -13,21 +13,22 @@ pub use encode::{encode, encoded_len};
 mod incoming;
 pub use incoming::{Body, Classified, Failure, Incoming};
 mod endpoint;
-pub use endpoint::{Endpoint, Prepared};
+pub use endpoint::{ConfigurationTask, Endpoint, Output, Prepared, PreparedSend};
+mod pairing;
+pub use pairing::PairingPayload;
 mod executor;
-#[cfg(test)]
-mod executor_tests;
-#[cfg(test)]
-mod raw_channel_tests;
+pub mod ingress;
 #[cfg(any(test, feature = "test-payload-probe"))]
 pub mod staging_probe;
 #[cfg(test)]
 mod typed_schema_tests;
 pub use executor::{dispatch, dispatch_bundle, dispatch_pending, mod_of};
 mod main_queue;
-pub use main_queue::MainQueue;
+pub use main_queue::{MainQueue, RawEvent};
 #[cfg(test)]
 pub(crate) mod test_support;
+#[cfg(test)]
+pub(crate) mod vanilla_peer_support;
 /// Physical server ingress identity, moved unchanged from I/O through Hub to main.
 /// Boxed only on mod-bearing paths so ordinary event unions do not grow.
 pub struct Delivery {
@@ -48,6 +49,8 @@ use sunrise_protocol::{
     packets::custom_payload::{PayloadCodecs, PayloadFlow, PayloadProtocol as CodecProtocol},
     payload_negotiation::{self as negotiation, Flow, Manifest, Phase, RegistrationPhase},
 };
+#[cfg(test)]
+pub(crate) const TEST_RECORD_OVERHEAD: usize = connection::record_overhead(&[]);
 pub(crate) use transport::PlayTransition;
 pub use transport::Transport;
 
@@ -165,7 +168,7 @@ impl Local {
             .get_or_init(|| Arc::new(Self::new(Manifest::default(), None)))
             .clone()
     }
-    fn new(manifest: Manifest, registry: Option<Arc<Payloads>>) -> Self {
+    pub(crate) fn new(manifest: Manifest, registry: Option<Arc<Payloads>>) -> Self {
         // The metadata channel must also be accepted by an otherwise unmodded endpoint:
         // an optional peer's offer can exceed the unknown serverbound discard limit.
         let mut channels = vec![

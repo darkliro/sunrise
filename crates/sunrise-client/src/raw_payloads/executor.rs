@@ -1,6 +1,7 @@
 //! NETWORK callbacks have no World borrow. Their replies and main work publish on success.
 use super::{
-    Body, Endpoint, Incoming, MainQueue, Prepared, Side,
+    Body, Endpoint, Incoming, MainQueue, Prepared, RawEvent, Side,
+    endpoint::ConfigurationTask,
     main_queue::{FailedMain, PreparedMain},
 };
 use mod_api::{
@@ -10,18 +11,24 @@ use mod_api::{
 };
 use std::sync::Arc;
 
-enum After {
+enum After<Ev> {
     Reply(Prepared),
-    Work(PreparedMain),
+    Work(PreparedMain<Ev>),
 }
-enum FailedPublication {
+enum FailedPublication<Ev> {
     Reply(PayloadSendError),
-    Main(FailedMain),
+    Main(FailedMain<Ev>),
 }
-const _: () = assert!(std::mem::size_of::<After>() <= 256);
+/// The staged reply container stays small enough to live inline in a handler's turn.
+fn assert_staged_fits<Ev>() {
+    const {
+        assert!(std::mem::size_of::<After<Ev>>() <= 256);
+    }
+}
 
 /// Called by the physical receiving executor. Main events use its ordinary ordered stream.
-pub fn dispatch(incoming: Incoming, endpoint: Endpoint, main: MainQueue) {
+pub fn dispatch<Ev: RawEvent>(incoming: Incoming, endpoint: Endpoint, main: MainQueue<Ev>) {
+    assert_staged_fits::<Ev>();
     let Some(connection) = endpoint.transport().connection.as_ref() else {
         return;
     };
@@ -51,12 +58,12 @@ pub fn dispatch(incoming: Incoming, endpoint: Endpoint, main: MainQueue) {
 /// `ClientNetworkRegistry.handleModdedPayload` invokes NETWORK listeners on
 /// the caller, which is already main inside a bundle. The bundle is itself the
 /// ordered main turn; don't enqueue these roots behind work received later.
-pub fn dispatch_bundle(incoming: Incoming, endpoint: &Endpoint) -> Vec<Incoming> {
+pub fn dispatch_bundle<Ev: RawEvent>(incoming: Incoming, endpoint: &Endpoint) -> Vec<Incoming> {
     let work = Arc::new(std::sync::Mutex::new(Vec::new()));
     execute(
         incoming,
         endpoint,
-        &MainQueue::ClientBundle(work.clone()),
+        &MainQueue::<Ev>::ClientBundle(work.clone()),
         None,
         PreparedMain::publish,
         |reason| {
@@ -68,7 +75,7 @@ pub fn dispatch_bundle(incoming: Incoming, endpoint: &Endpoint) -> Vec<Incoming>
 }
 
 /// The pooled play receiver calls this from its existing maintenance turn.
-pub fn dispatch_pending(endpoint: &Endpoint, main: &MainQueue) {
+pub fn dispatch_pending<Ev: RawEvent>(endpoint: &Endpoint, main: &MainQueue<Ev>) {
     let Some(connection) = endpoint.transport().connection.as_ref() else {
         return;
     };
@@ -89,12 +96,12 @@ pub fn dispatch_pending(endpoint: &Endpoint, main: &MainQueue) {
     }
 }
 
-fn execute(
+fn execute<Ev: RawEvent>(
     mut incoming: Incoming,
     endpoint: &Endpoint,
-    main: &MainQueue,
-    credit: Option<crate::net::ingress::ReceiveLease<crate::net::Event>>,
-    mut publish_main: impl FnMut(PreparedMain) -> Result<(), FailedMain>,
+    main: &MainQueue<Ev>,
+    credit: Option<super::ingress::ReceiveLease<Ev>>,
+    mut publish_main: impl FnMut(PreparedMain<Ev>) -> Result<(), FailedMain<Ev>>,
     disconnect: impl FnOnce(Text),
 ) {
     if !incoming.epoch.active() {
@@ -111,11 +118,11 @@ fn execute(
             // This is a wire record on the dedicated client reader, not work
             // staged by a mod. A closed reader leaves the old epoch to main:
             // an already-admitted bundle may still have inline payloads to run.
-            use crate::net::ingress::{Refusal, Refused};
+            use super::ingress::{Refusal, Refused};
             if let Err(Refused {
                 reason: Refusal::Pressure,
                 ..
-            }) = events.send_wait(crate::net::Event::RawPayload(Box::new(incoming)))
+            }) = events.send_wait(Ev::raw_payload(incoming))
             {
                 endpoint.disconnect(failure("payload main refused: Pressure"));
             }
@@ -185,7 +192,7 @@ fn execute(
                 {
                     session.finish_ordinal_under_epoch(*ordinal);
                 }
-                Ok::<(), FailedPublication>(())
+                Ok::<(), FailedPublication<Ev>>(())
             });
             drop(after);
             drop(finish_task);
@@ -237,16 +244,16 @@ pub fn mod_of(id: &PayloadId) -> &str {
 fn failure(message: &str) -> Text {
     Text::translate("disconnect.genericReason", vec![Text::literal(message)])
 }
-struct NetworkContext<'a> {
+struct NetworkContext<'a, Ev> {
     incoming: &'a Incoming,
     endpoint: &'a Endpoint,
-    main: &'a MainQueue,
-    after: Vec<Option<After>>,
+    main: &'a MainQueue<Ev>,
+    after: Vec<Option<After<Ev>>>,
     disconnect: Option<Text>,
-    finish_task: Option<(Arc<crate::lan::configuration_tasks::Session>, usize)>,
+    finish_task: Option<(Arc<dyn ConfigurationTask>, usize)>,
     failure: Option<CallbackFailure>,
 }
-impl IPayloadContext for NetworkContext<'_> {
+impl<Ev: RawEvent> IPayloadContext for NetworkContext<'_, Ev> {
     fn player(&self) -> Result<PlayerRef, PayloadContextError> {
         if !self.incoming.epoch.active() || self.disconnect.is_some() {
             return Err(PayloadContextError::Disconnected);

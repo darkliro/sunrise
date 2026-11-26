@@ -108,7 +108,11 @@ fn a_handled_child_abort_rolls_back_work_but_still_reports_the_panicking_owner()
             let air = BlockStatesHost::block_state_id(game, "minecraft:air").unwrap();
             assert_eq!(level.block_state(game, AT), Some(air));
 
-            let transport = Transport::capture(Side::Server).unwrap();
+            let transport = Transport::capture(
+                Side::Server,
+                crate::raw_payloads::connection::record_overhead(&[]),
+            )
+            .unwrap();
             transport.accept(&[]).unwrap();
             transport.finish_configuration().unwrap();
             let (sender, sent) = PlayerSender::payload_executor_test_sender(transport.clone());

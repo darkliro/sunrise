@@ -343,7 +343,7 @@ impl Game<'_> {
                 BundleStep::Payload(payload) => {
                     match Incoming::classify(endpoint.transport(), Phase::Play, payload) {
                         Ok(Classified::Application(incoming)) => {
-                            for task in dispatch_bundle(incoming, &endpoint) {
+                            for task in dispatch_bundle::<crate::net::Event>(incoming, &endpoint) {
                                 self.run_payload(endpoint.clone(), task);
                             }
                         }

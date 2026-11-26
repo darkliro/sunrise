@@ -73,6 +73,22 @@ use sunrise_protocol::{
     text::translatable,
 };
 
+/// Staging margin for the hosted side's ordered event unions and delivery record.
+pub(crate) const PAYLOAD_RECORD_OVERHEAD: usize =
+    crate::raw_payloads::connection::record_overhead(&[
+        std::mem::size_of::<NetEvent>(),
+        std::mem::size_of::<hub::HostEvent>(),
+    ]);
+
+#[cfg(test)]
+mod payload_epoch_tests;
+#[cfg(test)]
+mod payload_executor_tests;
+#[cfg(test)]
+mod payload_probe;
+#[cfg(test)]
+mod payload_raw_channel_tests;
+
 /// IntegratedServer.MAX_PLAYERS.
 pub const MAX_PLAYERS: usize = 8;
 
@@ -89,6 +105,28 @@ pub enum NetEvent {
     /// PlayerList.disconnectAllPlayersWithProfile: a new login of this
     /// profile replaces the player already in the world.
     Duplicate(u128),
+}
+impl crate::raw_payloads::RawEvent for NetEvent {
+    fn raw_payload(_: crate::raw_payloads::Incoming) -> Self {
+        unreachable!("a hosted server has no client main turn")
+    }
+    fn into_raw_payload(self) -> crate::raw_payloads::Incoming {
+        let Self::RawPayload(delivery) = self else {
+            unreachable!("only a raw payload event is taken back")
+        };
+        delivery.incoming
+    }
+    fn delivery(
+        conn: Option<u32>,
+        endpoint: crate::raw_payloads::Endpoint,
+        incoming: crate::raw_payloads::Incoming,
+    ) -> Self {
+        Self::RawPayload(Box::new(crate::raw_payloads::Delivery {
+            conn,
+            endpoint,
+            incoming,
+        }))
+    }
 }
 pub struct Joined {
     pub conn: u32,

@@ -625,7 +625,7 @@ fn a_late_spawn_pairs_with_the_only_held_viewer_before_the_next_pass() {
         sunrise_protocol::registry::Ids::from_names(vec!["minecraft:trident".into()]),
     );
     let (mut hub, _rx) = hub_with_sync(sync);
-    let transport = Transport::capture(Side::Server).unwrap();
+    let transport = Transport::capture(Side::Server, crate::lan::PAYLOAD_RECORD_OVERHEAD).unwrap();
     transport
         .accept(transport.local.manifest.entries())
         .unwrap();
@@ -705,7 +705,7 @@ fn late_pairing_is_one_publication_amid_concurrent_reliable_replies() {
         sunrise_protocol::registry::Ids::from_names(vec!["minecraft:trident".into()]),
     );
     let (mut hub, _rx) = hub_with_sync(sync);
-    let transport = Transport::capture(Side::Server).unwrap();
+    let transport = Transport::capture(Side::Server, crate::lan::PAYLOAD_RECORD_OVERHEAD).unwrap();
     transport
         .accept(transport.local.manifest.entries())
         .unwrap();

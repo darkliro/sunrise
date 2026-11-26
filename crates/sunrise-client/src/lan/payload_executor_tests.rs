@@ -1,19 +1,20 @@
 //! Real network executor/provider tests. No World or substitute payload context.
-use super::*;
+use crate::raw_payloads::*;
 use crate::{
     lan::{NetEvent, PlayerSender},
     net::ingress::{Consumer, Producer},
 };
 use mod_api::{
     HandlerThread, Hooks, IPayloadContext, IPayloadHandler, ModEntry, PayloadBytes,
-    PayloadContextError, PayloadWork, PayloadWorkStatus, Registrar,
+    PayloadContextError, PayloadId, PayloadSendError, PayloadWork, PayloadWorkStatus, Registrar,
 };
 use std::sync::{
-    Mutex, Weak,
+    Arc, Mutex, Weak,
     atomic::{AtomicUsize, Ordering},
     mpsc,
 };
 use std::time::Duration;
+use sunrise_protocol::payload_negotiation::{self as negotiation};
 
 const CHANNEL: &str = "executor_probe:message";
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -170,7 +171,9 @@ fn with_case(
         || {
             mod_platform::__private::part_tests::install_parts_fixture(mod_api::__private::mods())
                 .unwrap();
-            let transport = Transport::capture(Side::Server).unwrap();
+            let transport =
+                Transport::capture(Side::Server, crate::raw_payloads::TEST_RECORD_OVERHEAD)
+                    .unwrap();
             assert!(transport.local.owns(CHANNEL));
             transport
                 .accept(transport.local.manifest.entries())
@@ -192,7 +195,7 @@ fn with_case(
         },
     );
 }
-fn queue(probe: &Probe, endpoint: &Endpoint) -> MainQueue {
+fn queue(probe: &Probe, endpoint: &Endpoint) -> MainQueue<NetEvent> {
     MainQueue::Server {
         events: probe.events.clone(),
         endpoint: endpoint.clone(),
@@ -548,7 +551,9 @@ fn run_config_finish_case(
         || {
             mod_platform::__private::part_tests::install_parts_fixture(mod_api::__private::mods())
                 .unwrap();
-            let transport = Transport::capture(Side::Server).unwrap();
+            let transport =
+                Transport::capture(Side::Server, crate::raw_payloads::TEST_RECORD_OVERHEAD)
+                    .unwrap();
             transport
                 .accept(transport.local.manifest.entries())
                 .unwrap();
@@ -563,7 +568,13 @@ fn run_config_finish_case(
             *handler.session.lock().unwrap() = Some(session.clone());
             *handler.transport.lock().unwrap() = Arc::downgrade(&transport);
 
-            let endpoint = Endpoint::configuration(sender, Some(Arc::downgrade(&session)));
+            let endpoint = Endpoint::configuration(
+                sender,
+                Some(Arc::downgrade(&session)
+                    as std::sync::Weak<
+                        dyn crate::raw_payloads::ConfigurationTask,
+                    >),
+            );
             let incoming = Incoming::new(
                 &transport,
                 negotiation::Phase::Configuration,

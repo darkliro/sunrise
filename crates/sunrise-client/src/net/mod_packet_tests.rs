@@ -93,8 +93,11 @@ fn generic_submission_preserves_plugin_bytes_and_rejects_malformed_packets() {
 fn generic_submission_cannot_bypass_registered_or_engine_channel_authority() {
     crate::raw_payloads::test_support::with_peer(|_server_transport| {
         let (mut session, _peer) = connected();
-        session.payloads =
-            crate::raw_payloads::Transport::capture(crate::raw_payloads::Side::Client).unwrap();
+        session.payloads = crate::raw_payloads::Transport::capture(
+            crate::raw_payloads::Side::Client,
+            crate::net::PAYLOAD_RECORD_OVERHEAD,
+        )
+        .unwrap();
         for channel in [
             crate::raw_payloads::test_support::CHANNEL,
             sunrise_protocol::payload_negotiation::CHANNEL,
