@@ -3851,7 +3851,7 @@ struct Game<'a> {
     native_settings: native_hooks::mod_settings::SharedSettings,
     /// The native damage hooks every level of this game lends to its hits.
     damage_hooks: sunrise_client::health::DamageHooks,
-    paused_mob_hurt: Option<Box<sunrise_client::mobs::PausedMobHurt>>,
+    paused_mob_hurt: Option<Box<dyn std::any::Any>>,
     music: sunrise_client::music::MusicManager,
     /// The tracks native mods play over the music (`native_music_layers`).
     music_layers: sunrise_client::music::MusicLayers,

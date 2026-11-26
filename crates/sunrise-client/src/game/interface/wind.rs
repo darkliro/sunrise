@@ -422,7 +422,8 @@ impl Game<'_> {
                     attacker: p.owner,
                     from: Some([p.previous.x, p.previous.y, p.previous.z]),
                     direct: Some(p.entity_type()),
-                    attacker_species: owner_breeze.then_some(Species::Breeze),
+                    attacker_species: owner_breeze
+                        .then_some(sunrise_client::mobs::species::vanilla_id(Species::Breeze)),
                 };
                 let Some(index) = self.mob_index.find(&self.mobs, id) else {
                     return;

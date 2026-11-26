@@ -375,7 +375,7 @@ fn hurt_mob(
     cause: Option<sunrise_client::mobs::Species>,
     (amount, mut source): (f32, sunrise_client::mobs::Damage),
 ) -> bool {
-    source.attacker_species = cause;
+    source.attacker_species = cause.map(sunrise_client::mobs::species::vanilla_id);
     hurtable && m.damage(level, amount, source)
 }
 
@@ -1403,7 +1403,7 @@ impl Game<'_> {
                                 }),
                             from: Some(center),
                             direct: None,
-                            attacker_species: cause,
+                            attacker_species: cause.map(sunrise_client::mobs::species::vanilla_id),
                         };
                         // The blast damage source's direct entity (`getDirectEntity`): the primed
                         // TNT, cart, fireball, skull or crystal that went off, or an explicit

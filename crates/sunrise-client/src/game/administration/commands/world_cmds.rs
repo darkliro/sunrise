@@ -352,7 +352,11 @@ impl Game<'_> {
                     _ => None,
                 });
                 let attacker_species = match attacker {
-                    Some(Who::Mob(i)) => self.mobs.iter().find(|m| m.id == i).map(|m| m.species()),
+                    Some(Who::Mob(i)) => self
+                        .mobs
+                        .iter()
+                        .find(|m| m.id == i)
+                        .map(|m| sunrise_client::mobs::species::vanilla_id(m.species())),
                     _ => None,
                 };
                 let damage = Damage {

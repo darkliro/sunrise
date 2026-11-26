@@ -1818,9 +1818,15 @@ impl Game<'_> {
         while self
             .paused_mob_hurt
             .as_ref()
+            .and_then(|hit| hit.downcast_ref::<sunrise_client::mobs::PausedMobHurt>())
             .is_some_and(|hit| hit.victim == id && hit.join == join)
         {
-            let mut paused = *self.paused_mob_hurt.take().expect("matching paused hit");
+            let mut paused = *self
+                .paused_mob_hurt
+                .take()
+                .expect("matching paused hit")
+                .downcast::<sunrise_client::mobs::PausedMobHurt>()
+                .expect("matching paused hit");
             // Nested hits from this callback are independent of the suspended hit.
             self.mobs[index].release_hurt_pause();
             match paused.action {
@@ -2432,7 +2438,11 @@ impl Game<'_> {
         if source.attacker_species.is_none()
             && let Some(Who::Mob(id)) = source.attacker
         {
-            source.attacker_species = self.mobs.iter().find(|m| m.id == id).map(|m| m.species());
+            source.attacker_species = self
+                .mobs
+                .iter()
+                .find(|m| m.id == id)
+                .map(|m| sunrise_client::mobs::species::vanilla_id(m.species()));
         }
         let mut killed = false;
         let mut settle = false;
@@ -3463,7 +3473,9 @@ impl Game<'_> {
                                 attacker: Some(Who::Mob(attacker)),
                                 from: Some(from),
                                 direct: None,
-                                attacker_species: Some(Species::Warden),
+                                attacker_species: Some(sunrise_client::mobs::species::vanilla_id(
+                                    Species::Warden,
+                                )),
                             };
                             let hurt = self.mob_hits_mob(id, 10.0, source);
                             let resistance = self
@@ -6896,7 +6908,11 @@ impl Game<'_> {
         }
         let source_kind = self.projectile_damage_kind(arrow);
         let attacker_species = match arrow.owner {
-            Some(Who::Mob(id)) => self.mobs.iter().find(|m| m.id == id).map(|m| m.species()),
+            Some(Who::Mob(id)) => self
+                .mobs
+                .iter()
+                .find(|m| m.id == id)
+                .map(|m| sunrise_client::mobs::species::vanilla_id(m.species())),
             _ => None,
         };
         let source = Damage {
@@ -7629,7 +7645,11 @@ impl Game<'_> {
         }
         let source_kind = self.projectile_damage_kind(p);
         let attacker_species = match p.owner {
-            Some(Who::Mob(id)) => self.mobs.iter().find(|m| m.id == id).map(|m| m.species()),
+            Some(Who::Mob(id)) => self
+                .mobs
+                .iter()
+                .find(|m| m.id == id)
+                .map(|m| sunrise_client::mobs::species::vanilla_id(m.species())),
             _ => None,
         };
         let source = Damage {

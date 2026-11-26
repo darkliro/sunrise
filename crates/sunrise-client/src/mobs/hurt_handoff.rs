@@ -72,7 +72,7 @@ impl Mob {
         action: MobHurtAction,
     ) {
         self.hurt_paused = true;
-        level.pause_mob_hurt(PausedMobHurt {
+        level.pause_mob_hurt(Box::new(PausedMobHurt {
             victim: self.id,
             join: self.join,
             attack: level.attack().clone(),
@@ -84,7 +84,7 @@ impl Mob {
             creative_attacker: self.creative_attacker,
             hit,
             stage,
-        });
+        }));
     }
 
     /// The owner extracted the continuation; nested damage can start on this body.
@@ -124,7 +124,11 @@ impl Mob {
             HurtStage::AfterResistance(reduced) => self.hurt_after_resistance(level, hit, reduced),
         };
         if self.hurt_paused {
-            level.paused_mob_hurt().direct_tail = direct_tail;
+            level
+                .paused_mob_hurt()
+                .downcast_mut::<PausedMobHurt>()
+                .expect("paused hit")
+                .direct_tail = direct_tail;
         } else {
             self.finish_species_hurt(level, &source, true);
             if let Some((direct, cloud)) = direct_tail {

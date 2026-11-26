@@ -101,7 +101,8 @@
     "sunrise-mod-host": "platform",
     "sunrise-telemetry": "sunrise",
     "sunrise-telemetry-server": "sunrise",
-    "sunrise-mod-vocab": "engine"
+    "sunrise-mod-vocab": "engine",
+    "sunrise-entity-data": "engine"
   },
   "sides": {
     "_doc": "Gameplay's two sides (#2210): neither may depend on the other, directly or through another crate.",
@@ -131,7 +132,8 @@
       "sunrise-game-discovery",
       "sunrise-threads",
       "sunrise-deflate",
-      "sunrise-java-properties"
+      "sunrise-java-properties",
+      "sunrise-entity-data"
     ],
     "pending": {
       "_doc": "Engine crates that still take a non-portable crate, until the types they need move down. Entries only go away.",

@@ -1,4 +1,12 @@
 use super::*;
+use sunrise_entity_data::Hurtable;
+
+/// The simulator body behind a lent mob, for the reads only it can answer.
+fn mob_body(mob: &dyn Hurtable) -> &sunrise_client::mobs::Mob {
+    (mob as &dyn std::any::Any)
+        .downcast_ref()
+        .expect("mob body")
+}
 
 /// The hook points. Each does nothing in Sunrise.
 impl Game<'_> {
@@ -27,8 +35,8 @@ where
     match hurting {
         Hurting::Player(entity, source) => (entity, "minecraft:player", source),
         Hurting::Mob(mob, damage) => (
-            mob.id as i32,
-            mob.kind.id.as_str(),
+            mob.id(),
+            mob_body(mob).kind.id.as_str(),
             mob_source(damage, attack),
         ),
         Hurting::Dragon(entity, source) => (entity, "minecraft:ender_dragon", source),
@@ -47,7 +55,10 @@ pub(super) fn capture_hit(
         return None;
     }
     let (committed, dying) = match &hurting {
-        Hurting::Mob(mob, _) => (mob.last_damage, mob.health <= 0.0),
+        Hurting::Mob(mob, _) => {
+            let mob = mob_body(*mob);
+            (mob.last_damage, mob.health <= 0.0)
+        }
         _ => (None, true),
     };
     let (_, _, source) = hurt_server_args(hurting, attack);

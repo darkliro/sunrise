@@ -490,7 +490,9 @@ fn hit_attempts_reach_the_listener_once_including_refusals() {
             let mut wither = Mob::new(47, kind, Vec3::ZERO, 0.0);
             let health = wither.health;
             let mut blast = Damage::of(DamageKind::Explosion);
-            blast.attacker_species = Some(sunrise_client::mobs::Species::Wither);
+            blast.attacker_species = Some(sunrise_client::mobs::species::vanilla_id(
+                sunrise_client::mobs::Species::Wither,
+            ));
             assert!(!wither.damage(
                 damage_level_of!(game, &sunrise_client::health::NO_ATTACK, no_push, None),
                 2.0,

@@ -2404,7 +2404,10 @@ impl Game<'_> {
                 equipment: acting_equipment!(self),
                 attachments: None,
             });
-            (Some(body), lend_mob.and_then(HitLend::mob).or_else(parked))
+            (
+                Some(body),
+                lend_mob.and_then(|mob| HitLend::mob(mob)).or_else(parked),
+            )
         } else {
             let lend = match lend_mob {
                 Some(mob) => HitLend::mob(mob),
@@ -2419,7 +2422,7 @@ impl Game<'_> {
                     })
                     .or_else(parked),
             };
-            (victim_mob.map(LivingBody::Mob), lend)
+            (victim_mob.map(|mob| LivingBody::Mob(mob)), lend)
         };
         let level = crate::game::entity::damage_level_of!(
             self,
@@ -2538,7 +2541,7 @@ pub(super) fn knockback(level: DamageLevel<'_>, pushed: Hurting<'_>, knock: &mut
     }
     let attack = level.attack();
     let attacker = match &pushed {
-        Hurting::Mob(mob, damage) => match damage.attacker.or(mob.ai.last_hurt_by) {
+        Hurting::Mob(mob, damage) => match damage.attacker.or(mob_mob(*mob).ai.last_hurt_by) {
             Some(Who::Mob(id)) => id as i32,
             _ => attack.attacker,
         },
@@ -4929,4 +4932,11 @@ mod tests {
             assert_eq!(battery.amount(game), 300);
         });
     }
+}
+
+/// The simulator body behind a lent mob, for the reads only it can answer.
+fn mob_mob(mob: &dyn sunrise_entity_data::Hurtable) -> &sunrise_client::mobs::Mob {
+    (mob as &dyn std::any::Any)
+        .downcast_ref()
+        .expect("mob body")
 }
