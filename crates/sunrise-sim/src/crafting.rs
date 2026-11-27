@@ -495,26 +495,42 @@ impl Special {
                 dye,
                 result,
             } => {
-                // DyedSlotDemo: the targets cycle fastest, 16 stacks at most.
-                let (targets, dyes) = (&target.order, &dye.order);
+                // `DyeRecipe.display` keeps only the entries that carry the
+                // `dye` component; an entry without one never supplies a
+                // colour (#6556). DyedSlotDemo: the targets cycle fastest,
+                // 16 stacks at most.
+                let dye_stacks: Vec<ItemStack> = match &dye.shown {
+                    Some(stacks) => stacks.clone(),
+                    None => dye
+                        .order
+                        .iter()
+                        .map(|item| ItemStack::new(item, 1))
+                        .collect(),
+                };
+                let dyes: Vec<(ItemStack, u32)> = dye_stacks
+                    .into_iter()
+                    .filter_map(|stack| {
+                        let color = dye_of(&stack.item)
+                            .and_then(|i| sunrise_level::dyes::DYES.get(i))
+                            .map(|d| d.1)?;
+                        Some((stack, color))
+                    })
+                    .collect();
+                let targets = &target.order;
                 let all: Vec<ItemStack> = (0..targets.len() * dyes.len())
                     .map(|i| {
                         let mut made = result.create();
                         made.item = Arc::from(targets[i % targets.len()].as_str());
-                        // `SlotDisplay.DyedSlotDemo` reads the stack's `dye`
-                        // component, not the item name; an item without one is
-                        // the white default.
-                        let color = dye_of(&dyes[i / targets.len()])
-                            .and_then(|i| sunrise_level::dyes::DYES.get(i))
-                            .map_or(sunrise_level::dyes::DYES[0].1, |d| d.1);
-                        made.data_mut().dyed_color = Some(color as i32);
+                        made.data_mut().dyed_color = Some(dyes[i / targets.len()].1 as i32);
                         made
                     })
                     .take(16)
                     .collect();
+                let mut shown_dye = dye.clone();
+                shown_dye.shown = Some(dyes.into_iter().map(|(stack, _)| stack).collect());
                 let first = result.create();
                 vec![shown(
-                    Display::Shapeless(vec![target.clone(), dye.clone()]),
+                    Display::Shapeless(vec![target.clone(), shown_dye]),
                     first_of(&all, first),
                     all,
                 )]
@@ -3944,6 +3960,30 @@ mod tests {
             Some(0xB02E26),
             "the preview uses the component's red, not the white default"
         );
+    }
+    /// `DyeRecipe.display` filters the dye ingredient to entries carrying the
+    /// `dye` component, both in the shown slot and in the result variants
+    /// (#6556).
+    #[test]
+    fn dye_book_preview_keeps_only_entries_with_the_dye_component() {
+        let recipe = Special::Dye {
+            target: ingredient(&["minecraft:leather_helmet"]),
+            dye: ingredient(&["minecraft:red_dye", "minecraft:stick"]),
+            result: Template::parse(&serde_json::json!("minecraft:leather_helmet")).unwrap(),
+        };
+        let displays = recipe.book_displays(|item| (item == "minecraft:red_dye").then_some(14));
+        let variants = &displays[0].variants;
+        assert_eq!(variants.len(), 1, "a non-dye entry makes no variant");
+        assert_eq!(
+            variants[0].data().and_then(|d| d.dyed_color),
+            Some(0xB02E26)
+        );
+        let Display::Shapeless(slots) = &displays[0].display else {
+            panic!("a dye recipe shows its target and dye");
+        };
+        let shown = slots[1].shown.as_ref().expect("the dye slot is filtered");
+        assert_eq!(shown.len(), 1);
+        assert_eq!(shown[0].item.as_ref(), "minecraft:red_dye");
     }
 }
 
