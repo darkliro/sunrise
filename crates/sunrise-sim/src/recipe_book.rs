@@ -373,7 +373,7 @@ impl Book {
                 // Custom recipes are never learnable; the others show one
                 // display per material count (TransmuteRecipe.display).
                 Recipe::Special(special) => {
-                    for shown in special.book_displays() {
+                    for shown in special.book_displays(|item| recipes.item_dye(item)) {
                         entries.push(Entry {
                             id: crate::crafting::qualified(name),
                             display_id: -1,
