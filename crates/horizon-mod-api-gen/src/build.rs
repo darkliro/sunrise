@@ -345,6 +345,16 @@ pub fn generate_engine_points(root: &Path, out_dir: &Path) -> Result<(), String>
     })
 }
 
+/// Generate both the `Vocab` target and `engine_points.rs` in one shared walk cache.
+pub fn generate_vocab_and_engine_points(root: &Path, out_dir: &Path) -> Result<(), String> {
+    crate::interface_cache::with_cache(out_dir, || {
+        crate::source::with_walk_cache(|| {
+            generate(root, out_dir, Target::Vocab)?;
+            generate_engine_points(root, out_dir)
+        })
+    })
+}
+
 pub(super) fn generate_points_inner(root: &Path, out_dir: &Path) -> Result<(), String> {
     // Phase durations for CI's build report (points-timing.txt beside the output); never read back.
     let started = std::time::Instant::now();

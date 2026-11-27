@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 publish = false
 description = "Engine-owned mod interface vocabulary, host contracts and dispatch tables"
+links = "horizon_mod_vocab"
 
 [lib]
 name = "mod_vocab"
