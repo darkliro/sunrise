@@ -1126,8 +1126,7 @@ impl ServerGame<'_> {
             if r.attached
                 && let Some(player) = boosted
             {
-                e.meta
-                    .push((9, serializer::OPTIONAL_UNSIGNED_INT, Value::Id(player + 1)));
+                e.meta.push(attached_target_metadata(player));
             }
             if r.angled {
                 e.meta.push((10, serializer::BOOLEAN, Value::Bool(true)));
@@ -1471,9 +1470,31 @@ mod tests {
     }
 }
 
+/// `Projectile.getAddEntityPacket`'s `DATA_ATTACHED_TO_TARGET`: an unsigned int holding the
+/// tracked id plus one, so the id space wraps instead of overflowing (#6465).
+fn attached_target_metadata(player: i32) -> (u8, i32, Value) {
+    (
+        9,
+        serializer::OPTIONAL_UNSIGNED_INT,
+        Value::Id(player.wrapping_add(1)),
+    )
+}
+
 #[cfg(test)]
 mod vehicle_meta_tests {
     use super::*;
+
+    /// `Projectile.getAddEntityPacket` writes the id plus one into an unsigned int, so an id
+    /// at or above `0x7fff_ffff` wraps: no tracked rocket may lose its attachment (#6465).
+    #[test]
+    fn attached_target_metadata_wraps_a_high_bit_id() {
+        assert_eq!(attached_target_metadata(0x7fff_ffff).2, Value::Id(i32::MIN));
+        assert_eq!(
+            attached_target_metadata(i32::MIN + 2).2,
+            Value::Id(i32::MIN + 3)
+        );
+        assert_eq!(attached_target_metadata(-1).2, Value::Id(0));
+    }
 
     #[test]
     fn vehicle_wobble_state_carries_its_defaults() {
@@ -1490,6 +1511,54 @@ mod vehicle_meta_tests {
         );
         vehicle_meta(&mut e, 4, -1, 3.0);
         assert_eq!(e.meta.len(), 3);
+    }
+
+    /// `Projectile.getAddEntityPacket` writes the boosted player's id plus one into an
+    /// unsigned int, so a guest id above `i32::MAX` must wrap instead of overflowing:
+    /// `0x7fff_ffff` plus one is `i32::MIN`, and `0x8000_0002` plus one is `i32::MIN + 3`.
+    #[test]
+    #[ignore = "daily"]
+    fn attached_rocket_metadata_keeps_a_high_bit_guest_id() {
+        // The platform's init array only installs under `deps/`; a test binary elsewhere in
+        // the target tree (and `--exact` runs) needs it explicitly, as `install` is idempotent.
+        mod_platform::__private::test_platform::install();
+        use crate::game::native_guest_turn_tests::with_guests;
+        with_guests(|game| {
+            let ids = [(12, 0x7fff_ffff_i32), (13, i32::MIN + 2)];
+            for (conn, id) in ids {
+                game.server
+                    .lan
+                    .as_mut()
+                    .unwrap()
+                    .hub
+                    .update_guest(conn, |guest| guest.entity_id = id);
+                let mut rocket = sunrise_gameplay_common::game::fireworks::Rocket::remote(
+                    500 + conn,
+                    sunrise_core::geometry::Vec3::new(3.0, 64.0, 5.0),
+                    sunrise_core::geometry::Vec3::ZERO,
+                );
+                rocket.attached = true;
+                rocket.guest = Some(conn);
+                game.common.rockets.push(rocket);
+            }
+            let mut states = States::default();
+            game.lan_object_states(&mut states, false, 0);
+            for (conn, id) in ids {
+                let state = states
+                    .as_slice()
+                    .iter()
+                    .find(|state| state.id == (500 + conn) as i32)
+                    .unwrap();
+                assert!(
+                    state.meta.contains(&(
+                        9,
+                        serializer::OPTIONAL_UNSIGNED_INT,
+                        Value::Id(id.wrapping_add(1))
+                    )),
+                    "guest {conn}'s id {id:#x} keeps its high bit"
+                );
+            }
+        });
     }
 }
 
