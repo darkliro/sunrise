@@ -32,6 +32,7 @@ To play, use [the launcher](https://github.com/sunrise-org/sunrise-launcher/blob
 - [The modding book](modding/src/introduction.md): content mods (data) and native mods (Rust), how to make, install and publish them. [Native mods](modding/src/how-to/native-mods.md): how they build. [API reference](modding/src/reference/api.md): rustdoc, hook notes and NeoForge counterparts.
 - [Upgrading a 26.2 data pack](datapack-upgrade.md): `sunrise-port-pack upgrade-datapack` rewrites a 26.2 worldgen pack in 26.3's formats, and how the rewrite is checked against vanilla.
 - [Modpacks](modpacks.md): porting whole packs (ATM10 and smaller): import, inventory, carry-over, an agent per mod with a harness against the Java original, coverage, and how "10x" is measured.
+- [GTNH port tracker](gtnh-port-tracker.md): every mod in GregTech: New Horizons 2.9 measured against the mod API, with the 14 engine gates, existing Sunrise ports and what is ready to port.
 - [Launcher](https://github.com/sunrise-org/sunrise-launcher/blob/main/README.md): installs, updates and starts builds; its CLI and MCP server; releasing it.
 - [Versioning](versioning.md): how releases are numbered from 0.2 (`v0.2.x`, `launcher@0.2.x`), and how installs from before 0.2 get there.
 - [Resource packs](resource-packs.md): everything a 26.3 resource pack can change, whether Sunrise honours it, and the proof.

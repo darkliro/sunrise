@@ -7,6 +7,8 @@ pipeline, not a list of hand ports. It takes a pack as players download it and p
 Sunrise mods. The pipeline is AI agents in dependency order, each port checked against the
 original mod running in a dev-only Java instance.
 
+For a concrete pack, the [GTNH port tracker](gtnh-port-tracker.md) measures all 244 mods of GregTech: New Horizons 2.9 against the mod API, including the gates, the existing ports and the blocked add-ons.
+
 This page is the design. It builds on [mods.md](modding/src/how-to/content-mods.md) (content mods, native mods, and
 why Java jars cannot run in Sunrise, so we port instead). The ATM10 inventory behind the numbers below is
 [modpacks/atm10-mods.csv](modpacks/atm10-mods.csv).
