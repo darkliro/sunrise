@@ -1,0 +1,7 @@
+ids = [
+    "type:QuestBook",
+    "type:QuestBookError",
+    "type:QuestId",
+    "type:QuestNode",
+]
+why = "Publish a quest book's dependency graph: a nonzero `QuestId`, a `QuestNode` with its dependencies, and a `QuestBook` that validates unique ids, known dependencies and an acyclic order once on construction and Wire decoding."
