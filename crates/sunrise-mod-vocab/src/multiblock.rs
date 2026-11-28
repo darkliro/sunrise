@@ -148,7 +148,10 @@ impl fmt::Display for PatternError {
         match self {
             Self::Empty => f.write_str("the pattern has no layers or no rows"),
             Self::UnevenRow { layer, row } => {
-                write!(f, "layer {layer} row {row} is not as wide as the layer's first row")
+                write!(
+                    f,
+                    "layer {layer} row {row} is not as wide as the layer's first row"
+                )
             }
             Self::UnevenLayer { layer } => {
                 write!(f, "layer {layer} does not have the first layer's row count")
@@ -458,7 +461,9 @@ mod tests {
         let legend = Legend::new()
             .role(
                 'H',
-                CellMatcher::State(crate::block::block_state::block_state_from_ordinal(GLASS, 0)),
+                CellMatcher::State(crate::block::block_state::block_state_from_ordinal(
+                    GLASS, 0,
+                )),
                 "hatch",
             )
             .cell('.', CellMatcher::Any)
@@ -473,7 +478,9 @@ mod tests {
         let mut world = TestWorld::new(air());
         world.set([11, 64, 20], GLASS);
         world.set([11, 64, 22], GLASS);
-        let found = pattern.matches(&world, [10, 64, 20], PatternPlacement::default()).unwrap();
+        let found = pattern
+            .matches(&world, [10, 64, 20], PatternPlacement::default())
+            .unwrap();
         assert_eq!(found.origin(), [10, 64, 20]);
         assert_eq!(found.count("hatch"), 2);
         let hatches: Vec<_> = found.positions("hatch").collect();
@@ -519,12 +526,18 @@ mod tests {
         world.set([1, 0, 2], GLASS);
         world.set([1, 0, 0], STONE);
         assert!(
-            pattern.matches(&world, [0, 0, 0], PatternPlacement::default()).is_none(),
+            pattern
+                .matches(&world, [0, 0, 0], PatternPlacement::default())
+                .is_none(),
             "a wrong hatch state must refuse the shape"
         );
         let mut broken = TestWorld::new(air());
         broken.set([1, 0, 0], GLASS);
-        assert!(pattern.matches(&broken, [0, 0, 0], PatternPlacement::default()).is_none());
+        assert!(
+            pattern
+                .matches(&broken, [0, 0, 0], PatternPlacement::default())
+                .is_none()
+        );
     }
 
     #[test]
