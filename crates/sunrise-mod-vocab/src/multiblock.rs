@@ -2,45 +2,43 @@
 //!
 //! A pattern is a stack of layers of single-character cells. A [`Legend`] says what each character
 //! accepts: any block, air, one block, one exact state or a block tag, and may name a role such as
-//! `controller` or `hatch`. [`Pattern::matches`] walks the cells through a [`PatternWorld`] and
-//! answers a [`PatternMatch`] only when every cell matches, which is the shape check a multiblock's
-//! block entity runs when it forms.
+//! `controller` or `hatch`. [`Pattern::matches_level`] walks the cells through a level and answers a
+//! [`PatternMatch`] only when every cell matches, which is the shape check a multiblock's block
+//! entity runs when it forms.
 //!
-//! Matching is read-only and allocates nothing. It never loads a chunk: a position the world cannot
-//! answer ends the match. Re-run it when a neighbouring block changes or on the block entity's own
-//! cadence, not every tick.
+//! Matching is read-only and allocates nothing. It never loads a chunk: a position the level cannot
+//! answer, or one an `i32` position cannot name, ends the match instead of reading another cell.
 
-use crate::{BlockKey, BlockState, Host, HostBlockStates, LevelRef, TagKey, Tags};
+use crate::{
+    BlockKey, BlockState, Host, HostBlockStates, LevelRef, StructureRotation, TagKey, Tags,
+};
 use std::fmt;
-
-/// How a pattern is turned about the vertical axis before it is matched.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum PatternRotation {
-    /// The layers as written: `x` grows east and `z` grows south.
-    #[default]
-    None,
-    /// A quarter turn clockwise seen from above.
-    Clockwise,
-    /// Half a turn.
-    Half,
-    /// A quarter turn counter-clockwise seen from above.
-    CounterClockwise,
-}
 
 /// A pattern's `rotation` and whether it is mirrored first, across its north-south axis.
 ///
-/// The mirror applies to the pattern as written, then the rotation: this is the order a build
-/// tool uses when it flips a plan and then turns it. `PatternPlacement::default()` matches the pattern as
+/// The mirror applies to the pattern as written, then the rotation: this is the order a build tool
+/// uses when it flips a plan and then turns it. `PatternPlacement::default()` matches the pattern as
 /// written.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+// exhaustive: the two fields are the whole placement, and its Wire form is the contract.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, sunrise_mod_api_macros::Wire)]
 pub struct PatternPlacement {
     /// The turn applied after the mirror.
-    pub rotation: PatternRotation,
+    pub rotation: StructureRotation,
     /// Whether the pattern is mirrored across its north-south axis before turning.
     pub mirrored: bool,
 }
 
+impl Default for PatternPlacement {
+    fn default() -> Self {
+        Self {
+            rotation: StructureRotation::None,
+            mirrored: false,
+        }
+    }
+}
+
 /// What one pattern cell accepts.
+// no wire: a matcher is built during load and stays in the mod's own memory; a tag matcher holds a host-resolved key.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum CellMatcher {
@@ -73,6 +71,8 @@ impl CellMatcher {
 /// Every character in a layer must have an entry: an unknown character is a [`PatternError`], never
 /// an empty cell. Building a legend consumes it and returns it, so entries chain. A second entry
 /// for the same character replaces the first.
+// exhaustive: its fields are private, so mods cannot build or destructure it.
+// no wire: a legend is built and consumed during load; it has no binary form.
 #[derive(Clone, Debug, Default)]
 pub struct Legend {
     entries: Vec<(char, CellMatcher, Option<&'static str>)>,
@@ -113,12 +113,13 @@ impl Legend {
 }
 
 /// A pattern that cannot be read from its layers.
+// no wire: reports a local constructor failure, never a value that crosses a boundary.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum PatternError {
-    /// No layers, or a layer with no rows.
+    /// No layers, or a first layer with no rows or a row with no cells.
     Empty,
-    /// A layer's row has a different width from its first row.
+    /// A layer's row has a different width from the pattern's first row.
     UnevenRow {
         /// The layer's index, from the bottom.
         layer: usize,
@@ -141,16 +142,20 @@ pub enum PatternError {
         /// The character itself.
         symbol: char,
     },
+    /// The pattern is wider, taller or deeper than an `i32` position can name.
+    TooLarge,
 }
 
 impl fmt::Display for PatternError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Empty => f.write_str("the pattern has no layers or no rows"),
+            Self::Empty => f.write_str(
+                "the pattern has no layers, or its first layer has no rows or a row with no cells",
+            ),
             Self::UnevenRow { layer, row } => {
                 write!(
                     f,
-                    "layer {layer} row {row} is not as wide as the layer's first row"
+                    "layer {layer} row {row} is not as wide as the pattern's first row"
                 )
             }
             Self::UnevenLayer { layer } => {
@@ -165,6 +170,7 @@ impl fmt::Display for PatternError {
                 f,
                 "layer {layer} row {row} column {column} uses {symbol:?}, which the legend does not name"
             ),
+            Self::TooLarge => f.write_str("the pattern is larger than an i32 position can name"),
         }
     }
 }
@@ -173,8 +179,9 @@ impl std::error::Error for PatternError {}
 
 /// A block read a pattern needs: the state at a position, whether it is air, and the tag snapshot.
 ///
-/// A game side implements this through [`LevelPatternWorld`], which forwards to a [`LevelRef`] and
-/// its [`Host`]; a test implements it over a map.
+/// [`Pattern::matches_level`] is the game-facing read and needs no adapter: it takes a [`LevelRef`]
+/// and the [`Host`] that reads it. This trait is the same three reads named for a caller that has no
+/// `Host`, such as a unit test over a map.
 pub trait PatternWorld {
     /// The state at `pos`, or `None` when the position is unloaded, out of height, or unavailable.
     fn block_state(&self, pos: [i32; 3]) -> Option<BlockState>;
@@ -184,20 +191,13 @@ pub trait PatternWorld {
     fn tags(&self) -> &dyn Tags;
 }
 
-/// A [`PatternWorld`] over a game level: a [`LevelRef`] handle and the [`Host`] that reads it.
-pub struct LevelPatternWorld<'a> {
+/// A [`PatternWorld`] over a game level, for [`Pattern::matches_level`].
+struct LevelWorld<'a> {
     level: LevelRef,
     host: &'a dyn Host,
 }
 
-impl<'a> LevelPatternWorld<'a> {
-    /// Read `level` through `host`, as `level.block_state(host, pos)` does.
-    pub fn new(level: LevelRef, host: &'a dyn Host) -> Self {
-        Self { level, host }
-    }
-}
-
-impl PatternWorld for LevelPatternWorld<'_> {
+impl PatternWorld for LevelWorld<'_> {
     fn block_state(&self, pos: [i32; 3]) -> Option<BlockState> {
         self.level.block_state(self.host, pos)
     }
@@ -217,7 +217,10 @@ struct Cell {
     matcher: CellMatcher,
     role: Option<&'static str>,
 }
+
 /// A multiblock shape, read once from its layers and matched many times.
+// exhaustive: its fields are private, so mods cannot build or destructure it.
+// no wire: a pattern is read from the mod's own layers during load; it has no binary form.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Pattern {
     size: [i32; 3],
@@ -229,7 +232,8 @@ impl Pattern {
     ///
     /// A layer is its rows from north to south, and a row is its cells from west to east, so the
     /// local position of `layers[y][z]`'s `x`th character is `[x, y, z]`. Every layer must have the
-    /// same row count and every row the same width. `legend` must name every character used.
+    /// same row count and every row the same width, and the size must fit an `i32` position.
+    /// `legend` must name every character used.
     pub fn new(layers: &[&[&str]], legend: &Legend) -> Result<Self, PatternError> {
         let Some(first_layer) = layers.first() else {
             return Err(PatternError::Empty);
@@ -237,19 +241,20 @@ impl Pattern {
         let Some(first_row) = first_layer.first() else {
             return Err(PatternError::Empty);
         };
-        let width = first_row.chars().count();
+        let width = i32::try_from(first_row.chars().count()).map_err(|_| PatternError::TooLarge)?;
         if width == 0 {
             return Err(PatternError::Empty);
         }
-        let depth = first_layer.len();
+        let depth = i32::try_from(first_layer.len()).map_err(|_| PatternError::TooLarge)?;
+        let height = i32::try_from(layers.len()).map_err(|_| PatternError::TooLarge)?;
         let mut cells = Vec::new();
         for (y, layer) in layers.iter().enumerate() {
-            if layer.len() != depth {
+            if layer.len() != first_layer.len() {
                 return Err(PatternError::UnevenLayer { layer: y });
             }
             for (z, row) in layer.iter().enumerate() {
                 let symbols: Vec<char> = row.chars().collect();
-                if symbols.len() != width {
+                if symbols.len() != width as usize {
                     return Err(PatternError::UnevenRow { layer: y, row: z });
                 }
                 for (x, symbol) in symbols.into_iter().enumerate() {
@@ -261,6 +266,8 @@ impl Pattern {
                             symbol,
                         });
                     };
+                    // Every index is below the width, height and depth checked above, so the
+                    // conversion cannot wrap.
                     cells.push(Cell {
                         local: [x as i32, y as i32, z as i32],
                         matcher: matcher.clone(),
@@ -270,7 +277,7 @@ impl Pattern {
             }
         }
         Ok(Self {
-            size: [width as i32, layers.len() as i32, depth as i32],
+            size: [width, height, depth],
             cells,
         })
     }
@@ -283,36 +290,55 @@ impl Pattern {
     /// The footprint's size after `placement`: x and z swap for a quarter turn.
     pub fn footprint(&self, placement: PatternPlacement) -> [i32; 3] {
         match placement.rotation {
-            PatternRotation::None | PatternRotation::Half => self.size,
-            PatternRotation::Clockwise | PatternRotation::CounterClockwise => {
+            StructureRotation::None | StructureRotation::Clockwise180 => self.size,
+            StructureRotation::Clockwise90 | StructureRotation::Counterclockwise90 => {
                 [self.size[2], self.size[1], self.size[0]]
             }
         }
     }
 
     /// Turn one local position into its offset from the pattern's origin after `placement`.
-    fn placed_delta(&self, local: [i32; 3], placement: PatternPlacement) -> [i32; 3] {
+    ///
+    /// `None` when the local position is so far from the pattern that its offset is not an `i32`.
+    fn placed_delta(&self, local: [i32; 3], placement: PatternPlacement) -> Option<[i32; 3]> {
         let [width, _, depth] = self.size;
+        let last_x = width - 1;
+        let last_z = depth - 1;
         let x = if placement.mirrored {
-            width - 1 - local[0]
+            last_x.checked_sub(local[0])?
         } else {
             local[0]
         };
         let z = local[2];
         let (x, z) = match placement.rotation {
-            PatternRotation::None => (x, z),
-            PatternRotation::Clockwise => (depth - 1 - z, x),
-            PatternRotation::Half => (width - 1 - x, depth - 1 - z),
-            PatternRotation::CounterClockwise => (z, width - 1 - x),
+            StructureRotation::None => (x, z),
+            StructureRotation::Clockwise90 => (last_z.checked_sub(z)?, x),
+            StructureRotation::Clockwise180 => (last_x.checked_sub(x)?, last_z.checked_sub(z)?),
+            StructureRotation::Counterclockwise90 => (z, last_x.checked_sub(x)?),
         };
-        [x, local[1], z]
+        Some([x, local[1], z])
+    }
+
+    /// The world position of `local`, or `None` when an `i32` cannot name it.
+    fn world_position(
+        &self,
+        origin: [i32; 3],
+        local: [i32; 3],
+        placement: PatternPlacement,
+    ) -> Option<[i32; 3]> {
+        let delta = self.placed_delta(local, placement)?;
+        Some([
+            origin[0].checked_add(delta[0])?,
+            origin[1].checked_add(delta[1])?,
+            origin[2].checked_add(delta[2])?,
+        ])
     }
 
     /// Match the whole pattern with its minimum corner at `origin`.
     ///
     /// `origin` is the minimum corner of the pattern's footprint after `placement`, so a mirrored
     /// or turned pattern still starts at the position the caller names. `None` if any cell's state
-    /// is unavailable or does not match.
+    /// is unavailable or does not match, or if a cell's position is not an `i32` position.
     pub fn matches(
         &self,
         world: &dyn PatternWorld,
@@ -320,12 +346,7 @@ impl Pattern {
         placement: PatternPlacement,
     ) -> Option<PatternMatch<'_>> {
         for cell in &self.cells {
-            let delta = self.placed_delta(cell.local, placement);
-            let pos = [
-                origin[0] + delta[0],
-                origin[1] + delta[1],
-                origin[2] + delta[2],
-            ];
+            let pos = self.world_position(origin, cell.local, placement)?;
             let state = world.block_state(pos)?;
             if !cell.matcher.accepts(state, world) {
                 return None;
@@ -338,7 +359,7 @@ impl Pattern {
         })
     }
 
-    /// [`Self::matches`] over a game level: the handle and the host that reads it.
+    /// [`Self::matches`] over a game level: the level handle and the host that reads it.
     pub fn matches_level(
         &self,
         level: LevelRef,
@@ -346,11 +367,13 @@ impl Pattern {
         origin: [i32; 3],
         placement: PatternPlacement,
     ) -> Option<PatternMatch<'_>> {
-        self.matches(&LevelPatternWorld::new(level, host), origin, placement)
+        self.matches(&LevelWorld { level, host }, origin, placement)
     }
 }
 
 /// A pattern that matched: its origin, its placement and the world positions of its roles.
+// exhaustive: its fields are private, so mods cannot build or destructure it.
+// no wire: a match borrows the pattern and lives for one check.
 #[derive(Clone, Copy, Debug)]
 pub struct PatternMatch<'a> {
     pattern: &'a Pattern,
@@ -369,14 +392,11 @@ impl<'a> PatternMatch<'a> {
         self.placement
     }
 
-    /// The world position of the cell written at local `[x, y, z]`.
-    pub fn position(&self, local: [i32; 3]) -> [i32; 3] {
-        let delta = self.pattern.placed_delta(local, self.placement);
-        [
-            self.origin[0] + delta[0],
-            self.origin[1] + delta[1],
-            self.origin[2] + delta[2],
-        ]
+    /// The world position of the cell written at local `[x, y, z]`, or `None` when an `i32`
+    /// position cannot name it.
+    pub fn position(&self, local: [i32; 3]) -> Option<[i32; 3]> {
+        self.pattern
+            .world_position(self.origin, local, self.placement)
     }
 
     /// The world positions of the cells given `role` in the legend, in layer order.
@@ -385,7 +405,11 @@ impl<'a> PatternMatch<'a> {
             .cells
             .iter()
             .filter(move |cell| cell.role == Some(role))
-            .map(move |cell| self.position(cell.local))
+            // `matches` checked every cell's position, so these cannot be unrepresentable.
+            .map(move |cell| {
+                self.position(cell.local)
+                    .expect("matches checked every cell's position")
+            })
     }
 
     /// How many cells the legend gives `role`.
@@ -404,48 +428,71 @@ mod tests {
 
     const STONE: BlockKey = BlockKey(7);
     const GLASS: BlockKey = BlockKey(8);
+    const ORE_TAG: TagKey<BlockKey> = TagKey::from_static("test:ore");
+
+    fn state(block: BlockKey, ordinal: u16) -> BlockState {
+        crate::block::block_state::block_state_from_ordinal(block, ordinal)
+    }
+
+    fn air() -> BlockState {
+        state(BlockKey(0), 0)
+    }
 
     #[derive(Default)]
-    struct NoTags;
-    impl Tags for NoTags {}
+    struct TestTags {
+        members: Vec<(BlockKey, TagKey<BlockKey>)>,
+    }
+
+    impl Tags for TestTags {
+        fn block_in_tag(&self, block: BlockKey, tag: TagKey<BlockKey>) -> Option<bool> {
+            Some(self.members.contains(&(block, tag)))
+        }
+    }
 
     struct TestWorld {
-        blocks: Vec<([i32; 3], BlockState)>,
-        air: BlockState,
-        tags: NoTags,
+        cells: Vec<([i32; 3], Option<BlockState>)>,
+        tags: TestTags,
     }
 
     impl TestWorld {
-        fn new(air: BlockState) -> Self {
+        fn new() -> Self {
             Self {
-                blocks: Vec::new(),
-                air,
-                tags: NoTags,
+                cells: Vec::new(),
+                tags: TestTags::default(),
             }
         }
 
-        fn set(&mut self, pos: [i32; 3], block: BlockKey) {
-            let state = crate::block::block_state::block_state_from_ordinal(block, 0);
-            if let Some((_, stored)) = self.blocks.iter_mut().find(|(at, _)| *at == pos) {
-                *stored = state;
-            } else {
-                self.blocks.push((pos, state));
+        fn set(&mut self, pos: [i32; 3], block: BlockKey, ordinal: u16) {
+            self.put(pos, Some(state(block, ordinal)));
+        }
+
+        /// A cell the world cannot answer, as an unloaded chunk or an out-of-height position is.
+        fn unreadable(&mut self, pos: [i32; 3]) {
+            self.put(pos, None);
+        }
+
+        fn put(&mut self, pos: [i32; 3], state: Option<BlockState>) {
+            match self.cells.iter_mut().find(|(at, _)| *at == pos) {
+                Some((_, stored)) => *stored = state,
+                None => self.cells.push((pos, state)),
             }
+        }
+
+        fn in_tag(&mut self, block: BlockKey, tag: TagKey<BlockKey>) {
+            self.tags.members.push((block, tag));
         }
     }
 
     impl PatternWorld for TestWorld {
         fn block_state(&self, pos: [i32; 3]) -> Option<BlockState> {
-            Some(
-                self.blocks
-                    .iter()
-                    .find(|(at, _)| *at == pos)
-                    .map_or(self.air, |(_, state)| *state),
-            )
+            match self.cells.iter().find(|(at, _)| *at == pos) {
+                Some((_, state)) => *state,
+                None => Some(air()),
+            }
         }
 
         fn is_air(&self, state: BlockState) -> bool {
-            state == self.air
+            state == air()
         }
 
         fn tags(&self) -> &dyn Tags {
@@ -453,95 +500,153 @@ mod tests {
         }
     }
 
-    fn air() -> BlockState {
-        crate::block::block_state::block_state_from_ordinal(BlockKey(0), 0)
-    }
-
+    /// A 3x2x2 shape: a hatch at the west-north bottom corner and a controller at the east-south
+    /// top corner, so every expected position names a different axis and layer.
     fn casing() -> Pattern {
         let legend = Legend::new()
-            .role(
-                'H',
-                CellMatcher::State(crate::block::block_state::block_state_from_ordinal(
-                    GLASS, 0,
-                )),
-                "hatch",
-            )
-            .cell('.', CellMatcher::Any)
-            .cell(' ', CellMatcher::Air);
-        Pattern::new(&[&[" H ", "...", " H "]], &legend).unwrap()
+            .role('H', CellMatcher::Block(GLASS), "hatch")
+            .role('C', CellMatcher::Block(STONE), "controller")
+            .cell('.', CellMatcher::Any);
+        Pattern::new(&[&["H..", "..."], &["...", "..C"]], &legend).unwrap()
     }
 
     #[test]
     fn reads_layers_and_names_roles_by_world_position() {
         let pattern = casing();
-        assert_eq!(pattern.size(), [3, 1, 3]);
-        let mut world = TestWorld::new(air());
-        world.set([11, 64, 20], GLASS);
-        world.set([11, 64, 22], GLASS);
+        assert_eq!(pattern.size(), [3, 2, 2]);
+        let mut world = TestWorld::new();
+        world.set([10, 64, 40], GLASS, 0);
+        world.set([12, 65, 41], STONE, 0);
         let found = pattern
-            .matches(&world, [10, 64, 20], PatternPlacement::default())
+            .matches(&world, [10, 64, 40], PatternPlacement::default())
             .unwrap();
-        assert_eq!(found.origin(), [10, 64, 20]);
-        assert_eq!(found.count("hatch"), 2);
-        let hatches: Vec<_> = found.positions("hatch").collect();
-        assert_eq!(hatches, [[11, 64, 20], [11, 64, 22]]);
-        assert_eq!(found.position([0, 0, 0]), [10, 64, 20]);
+        assert_eq!(found.origin(), [10, 64, 40]);
+        assert_eq!(found.count("hatch"), 1);
+        assert_eq!(found.count("controller"), 1);
+        // Row 0 is north, so the hatch is the north edge of the bottom layer; the controller is
+        // one layer up, on the south row and the east column.
+        assert_eq!(found.positions("hatch").collect::<Vec<_>>(), [[10, 64, 40]]);
+        assert_eq!(
+            found.positions("controller").collect::<Vec<_>>(),
+            [[12, 65, 41]]
+        );
+        assert_eq!(found.position([0, 0, 0]), Some([10, 64, 40]));
+        assert_eq!(found.position([2, 1, 1]), Some([12, 65, 41]));
+        assert_eq!(found.count("missing"), 0);
     }
 
     #[test]
     fn turns_and_mirrors_about_the_origin() {
-        let pattern = casing();
-        assert_eq!(
-            pattern.footprint(PatternPlacement {
-                rotation: PatternRotation::Clockwise,
-                mirrored: true,
-            }),
-            [3, 1, 3]
-        );
-        let mut world = TestWorld::new(air());
-        // Mirror x -> 2 - x, then clockwise (x, z) -> (2 - z, x).
-        world.set([2, 0, 1], GLASS);
-        world.set([0, 0, 1], GLASS);
-        let found = pattern
-            .matches(
-                &world,
-                [0, 0, 0],
-                PatternPlacement {
-                    rotation: PatternRotation::Clockwise,
-                    mirrored: true,
-                },
-            )
-            .unwrap();
-        assert_eq!(found.position([0, 0, 0]), [2, 0, 2]);
-        assert_eq!(found.position([1, 0, 1]), [1, 0, 1]);
-        let hatches: Vec<_> = found.positions("hatch").collect();
-        assert_eq!(hatches, [[2, 0, 1], [0, 0, 1]]);
+        let legend = Legend::new()
+            .role('a', CellMatcher::Any, "a")
+            .role('b', CellMatcher::Any, "b")
+            .cell('.', CellMatcher::Any);
+        // 2 wide, 3 deep: turning swaps the axes, so the footprint says which turn was applied.
+        let pattern = Pattern::new(&[&["a.", "..", ".b"]], &legend).unwrap();
+        let placement = PatternPlacement {
+            rotation: StructureRotation::Clockwise90,
+            mirrored: true,
+        };
+        assert_eq!(pattern.footprint(placement), [3, 1, 2]);
+        // Mirror x -> 1 - x, then clockwise (x, z) -> (2 - z, x).
+        let mut world = TestWorld::new();
+        world.set([2, 0, 1], GLASS, 0);
+        world.set([0, 0, 0], GLASS, 0);
+        let found = pattern.matches(&world, [0, 0, 0], placement).unwrap();
+        assert_eq!(found.positions("a").collect::<Vec<_>>(), [[2, 0, 1]]);
+        assert_eq!(found.positions("b").collect::<Vec<_>>(), [[0, 0, 0]]);
+        assert_eq!(found.position([0, 0, 0]), Some([2, 0, 1]));
     }
 
     #[test]
-    fn refuses_a_missing_or_wrong_cell() {
+    fn refuses_a_cell_the_world_cannot_read() {
         let pattern = casing();
-        let mut world = TestWorld::new(air());
-        world.set([1, 0, 0], GLASS);
-        world.set([1, 0, 2], GLASS);
-        world.set([1, 0, 0], STONE);
+        let mut unreadable = TestWorld::new();
+        unreadable.set([10, 64, 40], GLASS, 0);
+        unreadable.unreadable([12, 65, 41]);
         assert!(
             pattern
-                .matches(&world, [0, 0, 0], PatternPlacement::default())
+                .matches(&unreadable, [10, 64, 40], PatternPlacement::default())
                 .is_none(),
-            "a wrong hatch state must refuse the shape"
+            "an unreadable cell must end the match, not read as air"
         );
-        let mut broken = TestWorld::new(air());
-        broken.set([1, 0, 0], GLASS);
+
+        // The same block in another state: `Block` takes every state, `State` only the one named.
+        let legend = Legend::new()
+            .cell('b', CellMatcher::Block(GLASS))
+            .cell('s', CellMatcher::State(state(GLASS, 0)));
+        let by_block = Pattern::new(&[&["b"]], &legend).unwrap();
+        let by_state = Pattern::new(&[&["s"]], &legend).unwrap();
+        let mut world = TestWorld::new();
+        world.set([0, 0, 0], GLASS, 1);
         assert!(
-            pattern
-                .matches(&broken, [0, 0, 0], PatternPlacement::default())
+            by_block
+                .matches(&world, [0, 0, 0], PatternPlacement::default())
+                .is_some()
+        );
+        assert!(
+            by_state
+                .matches(&world, [0, 0, 0], PatternPlacement::default())
                 .is_none()
         );
+
+        // Tag membership, against the world's snapshot.
+        let tagged = Pattern::new(
+            &[&["t"]],
+            &Legend::new().cell('t', CellMatcher::Tag(ORE_TAG)),
+        )
+        .unwrap();
+        let mut plain = TestWorld::new();
+        plain.set([0, 0, 0], STONE, 0);
+        assert!(
+            tagged
+                .matches(&plain, [0, 0, 0], PatternPlacement::default())
+                .is_none()
+        );
+        plain.in_tag(STONE, ORE_TAG);
+        assert!(
+            tagged
+                .matches(&plain, [0, 0, 0], PatternPlacement::default())
+                .is_some()
+        );
     }
 
     #[test]
-    fn reports_uneven_rows_and_unknown_symbols() {
+    fn refuses_a_position_an_i32_cannot_name() {
+        let legend = Legend::new().cell('.', CellMatcher::Any);
+        let mut world = TestWorld::new();
+        world.set([i32::MAX, 0, 0], STONE, 0);
+        world.set([i32::MIN, 0, 0], STONE, 0);
+
+        // A two-cell row at the largest origin: the second cell would be i32::MAX + 1.
+        let pair = Pattern::new(&[&[".."]], &legend).unwrap();
+        assert!(
+            pair.matches(&world, [i32::MAX, 0, 0], PatternPlacement::default())
+                .is_none()
+        );
+        // One cell fits there.
+        let single = Pattern::new(&[&["."]], &legend).unwrap();
+        let found = single
+            .matches(
+                &world,
+                [i32::MAX, i32::MAX, i32::MAX],
+                PatternPlacement::default(),
+            )
+            .unwrap();
+        assert_eq!(found.position([0, 0, 0]), Some([i32::MAX; 3]));
+
+        // A mirrored width-one pattern subtracts the local coordinate: the smallest one wraps.
+        let mirrored = PatternPlacement {
+            rotation: StructureRotation::None,
+            mirrored: true,
+        };
+        let found = single.matches(&world, [0, 0, 0], mirrored).unwrap();
+        assert_eq!(found.position([i32::MIN, 0, 0]), None);
+        assert_eq!(found.position([0, 0, 0]), Some([0, 0, 0]));
+    }
+
+    #[test]
+    fn reports_the_construction_failure_it_names() {
         let legend = Legend::new().cell('x', CellMatcher::Any);
         assert_eq!(
             Pattern::new(&[&["xx", "x"]], &legend),
@@ -560,6 +665,17 @@ mod tests {
                 symbol: '?'
             })
         );
-        assert_eq!(Pattern::new(&[], &legend), Err(PatternError::Empty));
+        for layers in [vec![], vec![vec![]], vec![vec![""]]] {
+            let rows: Vec<&[&str]> = layers.iter().map(|rows| rows.as_slice()).collect();
+            assert_eq!(Pattern::new(&rows, &legend), Err(PatternError::Empty));
+        }
+        assert_eq!(
+            PatternError::Empty.to_string(),
+            "the pattern has no layers, or its first layer has no rows or a row with no cells"
+        );
+        assert_eq!(
+            PatternError::UnevenRow { layer: 1, row: 2 }.to_string(),
+            "layer 1 row 2 is not as wide as the pattern's first row"
+        );
     }
 }

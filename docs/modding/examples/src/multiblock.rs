@@ -1,26 +1,23 @@
 //! The multiblock pattern the book's how-to page includes. A mod's real pattern is data from its
 //! block entity; this one keeps the page compiled.
 
-use mod_api::{BlockKey, CellMatcher, Legend, Pattern, PatternWorld, PatternPlacement, TagKey};
+use mod_api::{BlockKey, CellMatcher, Legend, Pattern, PatternPlacement, PatternWorld, TagKey};
 
 // ANCHOR: pattern
 /// A 3x3x3 steam casing: `steel` everywhere, a controller in the middle of the top layer and two
 /// hatch slots in the bottom layer, on the north and south faces.
-pub fn steam_casing(
-    steel: BlockKey,
-    controller: BlockKey,
-    hatches: TagKey<BlockKey>,
-) -> Pattern {
+pub fn steam_casing(steel: BlockKey, controller: BlockKey, hatches: TagKey<BlockKey>) -> Pattern {
     let legend = Legend::new()
         .cell('s', CellMatcher::Block(steel))
         .role('C', CellMatcher::Block(controller), "controller")
         .role('H', CellMatcher::Tag(hatches), "hatch");
     let layers: &[&[&str]] = &[
-        &["sss", "sHs", "sss"],
+        &["sHs", "sss", "sHs"],
         &["sss", "sss", "sss"],
         &["sss", "sCs", "sss"],
     ];
-    Pattern::new(layers, &legend).expect("the casing layers are rectangular and use only legend symbols")
+    Pattern::new(layers, &legend)
+        .expect("the casing layers are rectangular and use only legend symbols")
 }
 // ANCHOR_END: pattern
 

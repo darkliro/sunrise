@@ -6,10 +6,9 @@ structure intact. Sunrise has no separate multiblock framework. The mod API give
 the check needs, and `mod_api::Pattern` combines them:
 
 - a **pattern** read once from layers of characters, with a legend saying what each character accepts;
-- a **block read** through `PatternWorld`, which a game level answers through `LevelPatternWorld`.
+- a **block read** from a `LevelRef` and its `Host`, through `Pattern::matches_level`.
 
-The pattern validates the shape. It does not place, break or own the blocks: your block entity does
-that, and re-runs the check when the world around it changes.
+The pattern validates the shape. It does not place, break or own the blocks.
 
 ## Write the pattern
 
@@ -42,45 +41,41 @@ is read on each match, so a data reload changes what the pattern accepts without
 `Pattern::matches` answers a `PatternMatch` only when every cell's state is available and accepted.
 `origin` is the minimum corner of the pattern's **footprint after placement**, so building the same
 shape mirrored or turned keeps the position the caller names. A position the level cannot answer
-(unloaded chunk, outside the build height, a stale view) ends the match with `None`: no partial
-formation.
+(unloaded chunk, outside the build height, a stale view), or one an `i32` position cannot name, ends
+the match with `None`: no partial formation.
 
-Use `PatternPlacement` for the four quarter turns and the mirror:
+`PatternPlacement` takes one of `StructureRotation`'s four turns and a mirror, which applies before
+the turn:
 
 ```rust,ignore
-let formed = casing.matches(&world, origin, PatternPlacement {
-    rotation: PatternRotation::Clockwise,
+let formed = casing.matches_level(level, host, origin, PatternPlacement {
+    rotation: StructureRotation::Clockwise90,
     mirrored: true,
 })?;
-let front = formed.position([1, 0, 2]);          // a local cell, in the world
+let front = formed.position([1, 0, 2]);          // Some(...) for a local cell in the world
 let hatches: Vec<_> = formed.positions("hatch").collect();
 let controllers = formed.count("controller");
 ```
 
-`PatternMatch::position` maps any local position; `positions(role)` and `count(role)` read the
-legend's roles. `origin()` and `placement()` are there to store with the formed state.
+`PatternMatch::position` maps any local position and answers `None` when an `i32` position cannot
+name it; `positions(role)` and `count(role)` read the legend's roles. `origin()` and `placement()` are
+there to store with the formed state.
 
-On a server hook or a block entity tick, pass the level handle and its host to `matches_level`:
+`matches_level(level, host, ...)` is the whole game-facing read: it asks the level for each cell's
+state and the host for air and the tag snapshot, the same reads the rest of the mod uses. There is
+no capability lookup inside the pattern: after a match, read each hatch's `ITEMS`, `FLUIDS` or
+`ENERGY` capability at the positions the roles give you, with the side that faces the machine.
 
-```rust,ignore
-let formed = casing.matches_level(level, host, origin, PatternPlacement::default());
-```
-
-`LevelPatternWorld` reads block states through the level handle and its host, and forwards `is_air` and
-the tag snapshot to the host, so the pattern uses the same level reads as the rest of the mod. There is no capability lookup inside the pattern: after a
-match, read each hatch's `ITEMS`, `FLUIDS` or `ENERGY` capability at the positions the roles give
-you, with the side that faces the machine.
+`Pattern::matches` takes a `PatternWorld` instead, for a caller that has no `Host`: the same three
+reads, which a unit test answers over a map.
 
 ## Cost and lifetime
 
-- Matching walks the pattern's cells and allocates nothing. Keep the `Pattern` in the block entity
-  type or a static, not in the tick path, and rebuild it only when its legend changes.
-- Do not match every tick. Match when a neighbouring block changes, when the block entity is
-  placed or loaded, and on a slower retry cadence while unformed.
+- Matching walks the pattern's cells and allocates nothing. A `Pattern` is a value the block entity
+  type keeps and reads.
 - A pattern is read-only. Forming can require extra rules the shape cannot state (owner, tier,
-  redstone, a minimum number of hatches): check those after `matches`, using the role positions.
-- A match is a point-in-time answer. A later block change can break the shape; re-run the check
-  rather than trusting a stored `PatternMatch`.
+  redstone, a minimum number of hatches): those are checked after `matches`, at the role positions.
+- A match is a point-in-time answer: it says which cells were where, when the match ran.
 
 ## Limits
 
