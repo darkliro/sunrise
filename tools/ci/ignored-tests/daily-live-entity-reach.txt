@@ -1,0 +1,3 @@
+# PACKAGE TEST TARGET daily REASON; exact logical libtest identities, sorted.
+# A guest reach reads the live body and prepared motion tables (#6825).
+sunrise-gameplay-common game::lan_actions::issue_6825_tests::issue_6825_entity_reach_reads_the_live_body lib daily resources
