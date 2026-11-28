@@ -33,14 +33,14 @@ as the file format says.
 
 The engine matches the selector against the recipe's id, type, file result and resolved ingredients, and
 applies the action. A malformed entry is skipped with a warning naming its file; it never widens to match
-every recipe.
+every recipe. The `namespace` criterion reads the recipe id's namespace.
 
 ## `remove`, not disable
 
 | You want | Declare |
 | --- | --- |
 | Every recipe of a type gone | a selector with `type`, action `Remove` |
-| Every recipe in one namespace gone | a selector with the id pattern `namespace:*`, action `Remove` |
+| Every recipe in one namespace gone | a selector with `namespace` (or the id pattern `namespace:*`), action `Remove` |
 | One item no longer accepted | a selector with `input`, action `ReplaceInput` |
 | One result replaced | a selector with `output`, action `ReplaceOutput` |
 

@@ -7,9 +7,10 @@
 //! - `id`: the recipe id, `*` matching any run of characters
 //!   (`minecraft:*_planks`);
 //! - `type`: the recipe's `type`, with the same `*`;
+//! - `namespace`: the recipe id's namespace (`gtceu`);
 //! - `input`: an item id or `#tag` among the recipe's inputs;
-//! - `output`: an item id among its outputs (under `result`, `results`,
-//!   `output` or `outputs`);
+//! - `output`: an item id or `#tag` among its outputs (under `result`,
+//!   `results`, `output` or `outputs`);
 //! - `remove: true`, or `replace_input` / `replace_output`
 //!   `{"from": ..., "to": ...}`, which swaps every input (or output) that is
 //!   `from` for `to`.
@@ -18,8 +19,11 @@
 //! conditions held, so they see the final set and reach every recipe type,
 //! mods' own included: they work on the recipe's JSON. Files apply in id
 //! order, each file's filters in order. A pack's file replaces a file of the
-//! same id, as any data file does. A filter with an unknown key or no action
-//! is skipped with a warning, so a typo never matches every recipe.
+//! same id, as any data file does. A filter with an unknown key, an invalid
+//! reference or no action is skipped with a warning, so a typo never matches
+//! every recipe. Each entry is read into the typed values the mod API
+//! publishes (`RecipeFilter`); matching and application stay here.
+use mod_vocab::{Namespace, RecipeAction, RecipeFilter, RecipeItem, RecipePattern, RecipeSelector};
 use serde_json::Value;
 use std::path::Path;
 use sunrise_world::loot::PackOverlay;
@@ -36,26 +40,10 @@ const NOT_ITEMS: [&str; 5] = [
     sunrise_world::conditions::FABRIC_KEY,
 ];
 
-#[derive(Clone, Debug, PartialEq)]
-enum Action {
-    Remove,
-    ReplaceInput(String, String),
-    ReplaceOutput(String, String),
-}
-
-#[derive(Clone, Debug, PartialEq)]
-struct Filter {
-    id: Option<String>,
-    kind: Option<String>,
-    input: Option<String>,
-    output: Option<String>,
-    action: Action,
-}
-
 /// Every recipe filter of a load, in the order they apply.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct RecipeFilters {
-    filters: Vec<Filter>,
+    filters: Vec<RecipeFilter>,
 }
 
 impl RecipeFilters {
@@ -90,7 +78,7 @@ impl RecipeFilters {
                 continue;
             }
             for (i, f) in v["filters"].as_array().into_iter().flatten().enumerate() {
-                match Filter::parse(f) {
+                match parse_filter(f) {
                     Ok(f) => filters.push(f),
                     Err(e) => log::warn!("Sunrise: recipe filter {file} #{i} skipped: {e}"),
                 }
@@ -106,14 +94,15 @@ impl RecipeFilters {
     /// Runs the filters over recipe `id` (`ns:path`): false when one removes
     /// it, else `recipe` with every swap applied.
     pub fn apply(&self, id: &str, recipe: &mut Value) -> bool {
-        for f in &self.filters {
-            if !f.matches(id, recipe) {
+        for filter in &self.filters {
+            if !matches(filter.selector(), id, recipe) {
                 continue;
             }
-            match &f.action {
-                Action::Remove => return false,
-                Action::ReplaceInput(from, to) => replace(recipe, from, to, false, false),
-                Action::ReplaceOutput(from, to) => replace(recipe, from, to, false, true),
+            match filter.action() {
+                RecipeAction::Remove => return false,
+                RecipeAction::ReplaceInput { from, to } => replace(recipe, from, to, false),
+                RecipeAction::ReplaceOutput { from, to } => replace(recipe, from, to, true),
+                _ => {}
             }
         }
         true
@@ -134,71 +123,96 @@ fn read_dir(dir: &Path, prefix: &str, out: &mut std::collections::BTreeMap<Strin
     }
 }
 
-impl Filter {
-    fn parse(v: &Value) -> Result<Self, String> {
-        let obj = v.as_object().ok_or("not an object")?;
-        let text = |k: &str| -> Result<Option<String>, String> {
-            match obj.get(k) {
-                None => Ok(None),
-                Some(Value::String(s)) => Ok(Some(s.clone())),
-                Some(_) => Err(format!("`{k}` is not a string")),
-            }
+/// Read one JSON entry into its typed selector and action. A refusal names
+/// the field, so a skipped filter is fixable from the log line.
+fn parse_filter(v: &Value) -> Result<RecipeFilter, String> {
+    let obj = v.as_object().ok_or("not an object")?;
+    let text = |k: &str| -> Result<Option<String>, String> {
+        match obj.get(k) {
+            None => Ok(None),
+            Some(Value::String(s)) => Ok(Some(s.clone())),
+            Some(_) => Err(format!("`{k}` is not a string")),
+        }
+    };
+    let swap = |k: &str| -> Result<Option<(RecipeItem, RecipeItem)>, String> {
+        let Some(s) = obj.get(k) else {
+            return Ok(None);
         };
-        let swap = |k: &str| -> Result<Option<(String, String)>, String> {
-            let Some(s) = obj.get(k) else {
-                return Ok(None);
-            };
-            match (s["from"].as_str(), s["to"].as_str()) {
-                (Some(from), Some(to)) => Ok(Some((from.to_owned(), to.to_owned()))),
-                _ => Err(format!("`{k}` needs `from` and `to` strings")),
-            }
-        };
-        for k in obj.keys() {
-            if !matches!(
-                k.as_str(),
-                "id" | "type" | "input" | "output" | "remove" | "replace_input" | "replace_output"
-            ) {
-                return Err(format!("unknown key `{k}`"));
-            }
+        match (s["from"].as_str(), s["to"].as_str()) {
+            (Some(from), Some(to)) => Ok(Some((
+                RecipeItem::parse(from).map_err(|e| format!("`{k}.from`: {e}"))?,
+                RecipeItem::parse(to).map_err(|e| format!("`{k}.to`: {e}"))?,
+            ))),
+            _ => Err(format!("`{k}` needs `from` and `to` strings")),
         }
-        let mut actions = Vec::new();
-        match obj.get("remove") {
-            None | Some(Value::Bool(false)) => {}
-            Some(Value::Bool(true)) => actions.push(Action::Remove),
-            Some(_) => return Err("`remove` is not a boolean".into()),
+    };
+    for k in obj.keys() {
+        if !matches!(
+            k.as_str(),
+            "id" | "type"
+                | "namespace"
+                | "input"
+                | "output"
+                | "remove"
+                | "replace_input"
+                | "replace_output"
+        ) {
+            return Err(format!("unknown key `{k}`"));
         }
-        if let Some((from, to)) = swap("replace_input")? {
-            actions.push(Action::ReplaceInput(from, to));
-        }
-        if let Some((from, to)) = swap("replace_output")? {
-            actions.push(Action::ReplaceOutput(from, to));
-        }
-        let [action] = <[Action; 1]>::try_from(actions)
-            .map_err(|_| "needs exactly one of `remove`, `replace_input`, `replace_output`")?;
-        Ok(Self {
-            id: text("id")?,
-            kind: text("type")?,
-            input: text("input")?,
-            output: text("output")?,
-            action,
-        })
     }
+    let mut actions = Vec::new();
+    match obj.get("remove") {
+        None | Some(Value::Bool(false)) => {}
+        Some(Value::Bool(true)) => actions.push(RecipeAction::Remove),
+        Some(_) => return Err("`remove` is not a boolean".into()),
+    }
+    if let Some((from, to)) = swap("replace_input")? {
+        actions.push(RecipeAction::ReplaceInput { from, to });
+    }
+    if let Some((from, to)) = swap("replace_output")? {
+        actions.push(RecipeAction::ReplaceOutput { from, to });
+    }
+    let [action] = <[RecipeAction; 1]>::try_from(actions)
+        .map_err(|_| "needs exactly one of `remove`, `replace_input`, `replace_output`")?;
 
-    fn matches(&self, id: &str, recipe: &Value) -> bool {
-        self.id.as_deref().is_none_or(|p| glob(p, id))
-            && self
-                .kind
-                .as_deref()
-                .is_none_or(|p| glob(p, recipe["type"].as_str().unwrap_or("")))
-            && self
-                .input
-                .as_deref()
-                .is_none_or(|i| contains(recipe, i, false, false))
-            && self
-                .output
-                .as_deref()
-                .is_none_or(|o| contains(recipe, o, false, true))
+    let mut selector = RecipeSelector::new();
+    if let Some(id) = text("id")? {
+        selector = selector.with_id(RecipePattern::parse(&id).map_err(|e| format!("`id`: {e}"))?);
     }
+    if let Some(kind) = text("type")? {
+        selector =
+            selector.with_kind(RecipePattern::parse(&kind).map_err(|e| format!("`type`: {e}"))?);
+    }
+    if let Some(namespace) = text("namespace")? {
+        selector = selector
+            .with_namespace(Namespace::parse(&namespace).map_err(|e| format!("`namespace`: {e}"))?);
+    }
+    if let Some(input) = text("input")? {
+        selector =
+            selector.with_input(RecipeItem::parse(&input).map_err(|e| format!("`input`: {e}"))?);
+    }
+    if let Some(output) = text("output")? {
+        selector =
+            selector.with_output(RecipeItem::parse(&output).map_err(|e| format!("`output`: {e}"))?);
+    }
+    Ok(RecipeFilter::new(selector, action))
+}
+
+/// Whether every criterion of `selector` holds for recipe `id` and its JSON.
+fn matches(selector: &RecipeSelector, id: &str, recipe: &Value) -> bool {
+    selector.id().is_none_or(|p| glob(p.as_str(), id))
+        && selector
+            .kind()
+            .is_none_or(|p| glob(p.as_str(), recipe["type"].as_str().unwrap_or("")))
+        && selector
+            .namespace()
+            .is_none_or(|ns| id.split_once(':').is_some_and(|(n, _)| n == ns.as_str()))
+        && selector
+            .input()
+            .is_none_or(|i| contains(recipe, i, false, false))
+        && selector
+            .output()
+            .is_none_or(|o| contains(recipe, o, false, true))
 }
 
 /// `pattern` with `*` as any run of characters, against `s`.
@@ -221,22 +235,24 @@ fn glob(pattern: &str, s: &str) -> bool {
     rest.len() >= last.len() && rest.ends_with(last)
 }
 
-/// The item a string at `key` names: a `tag` key's value is a tag without
-/// its `#` (`{"tag": "c:ingots"}`).
-fn named(key: Option<&str>, s: &str) -> String {
-    if key == Some("tag") {
-        format!("#{s}")
-    } else {
-        s.to_owned()
+/// Whether `s` at `key` is `item`. A `tag` key's value is a tag without its
+/// `#`; an item is never a tag, and the other way round.
+fn references(key: Option<&str>, s: &str, item: &RecipeItem) -> bool {
+    match item {
+        RecipeItem::Tag(id) => {
+            (key == Some("tag") && s == id.as_str()) || s.strip_prefix('#') == Some(id.as_str())
+        }
+        RecipeItem::Item(id) => key != Some("tag") && s == id.as_str(),
+        _ => false,
     }
 }
 
 /// Whether `item` is among `v`'s inputs (`outputs` false) or outputs
 /// (`outputs` true). `inside` says the walk is already under an output key.
-fn contains(v: &Value, item: &str, inside: bool, outputs: bool) -> bool {
-    fn walk(v: &Value, key: Option<&str>, item: &str, inside: bool, outputs: bool) -> bool {
+fn contains(v: &Value, item: &RecipeItem, inside: bool, outputs: bool) -> bool {
+    fn walk(v: &Value, key: Option<&str>, item: &RecipeItem, inside: bool, outputs: bool) -> bool {
         match v {
-            Value::String(s) => inside == outputs && named(key, s) == item,
+            Value::String(s) => inside == outputs && references(key, s, item),
             Value::Array(a) => a.iter().any(|v| walk(v, key, item, inside, outputs)),
             Value::Object(o) => o.iter().any(|(k, v)| {
                 !NOT_ITEMS.contains(&k.as_str())
@@ -255,16 +271,25 @@ fn contains(v: &Value, item: &str, inside: bool, outputs: bool) -> bool {
 }
 
 /// Swaps every input (`outputs` false) or output that is `from` for `to`.
-fn replace(v: &mut Value, from: &str, to: &str, inside: bool, outputs: bool) {
-    fn walk(v: &mut Value, key: Option<&str>, from: &str, to: &str, inside: bool, outputs: bool) {
+fn replace(v: &mut Value, from: &RecipeItem, to: &RecipeItem, outputs: bool) {
+    fn walk(
+        v: &mut Value,
+        key: Option<&str>,
+        from: &RecipeItem,
+        to: &RecipeItem,
+        inside: bool,
+        outputs: bool,
+    ) {
         match v {
             Value::String(s) => {
-                if inside == outputs && named(key, s) == from {
+                if inside == outputs && references(key, s, from) {
                     // A `tag` key holds the tag without its `#`.
-                    *s = match key {
-                        Some("tag") => to.trim_start_matches('#').to_owned(),
-                        _ => to.to_owned(),
-                    };
+                    match (key, to) {
+                        (Some("tag"), RecipeItem::Tag(id)) => *s = id.as_str().to_owned(),
+                        (_, RecipeItem::Tag(id)) => *s = format!("#{}", id.as_str()),
+                        (_, RecipeItem::Item(id)) => *s = id.as_str().to_owned(),
+                        _ => {}
+                    }
                 }
             }
             Value::Array(a) => a
@@ -281,7 +306,7 @@ fn replace(v: &mut Value, from: &str, to: &str, inside: bool, outputs: bool) {
             _ => {}
         }
     }
-    walk(v, None, from, to, inside, outputs)
+    walk(v, None, from, to, false, outputs)
 }
 
 #[cfg(test)]
@@ -327,6 +352,15 @@ mod tests {
     }
 
     #[test]
+    fn remove_by_namespace() {
+        let f = filters(json!({"filters": [{"namespace": "gtceu", "remove": true}]}));
+        assert!(!f.apply("gtceu:macerator/iron", &mut json!({})));
+        assert!(f.apply("minecraft:stick", &mut json!({})));
+        // A namespace is not a path prefix: `gtceu_extra` is another namespace.
+        assert!(f.apply("gtceu_extra:machine", &mut json!({})));
+    }
+
+    #[test]
     fn swaps_reach_mod_types_and_tag_objects() {
         let mut machine = json!({"type": "gtceu:macerator",
             "inputs": {"item": [{"tag": "c:ingots/iron"}, "minecraft:iron_ingot"]},
@@ -350,7 +384,10 @@ mod tests {
             {"Id": "minecraft:stick", "remove": true},
             {"id": "minecraft:stick"},
             {"remove": true, "replace_input": {"from": "a:b", "to": "c:d"}},
-            {"replace_input": {"from": "a:b"}}
+            {"replace_input": {"from": "a:b"}},
+            {"namespace": "MyMod", "remove": true},
+            {"id": "stick", "remove": true},
+            {"output": "#", "remove": true}
         ]}));
         assert!(f.is_empty());
         assert!(
