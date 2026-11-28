@@ -10,3 +10,6 @@ pub use crate::item::crafting::{
 pub use crate::item::ingredient_predicate::{
     IngredientDefinition, IngredientPredicate, IngredientStack,
 };
+pub use crate::item::recipe_filter::{
+    Namespace, RecipeAction, RecipeFilter, RecipeItem, RecipePattern, RecipeSelector, SelectorError,
+};
