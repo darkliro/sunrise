@@ -1,0 +1,10 @@
+ids = [
+    "type:Namespace",
+    "type:RecipeAction",
+    "type:RecipeFilter",
+    "type:RecipeItem",
+    "type:RecipePattern",
+    "type:RecipeSelector",
+    "type:SelectorError",
+]
+why = "Publish the typed form of a `recipe_filter` entry: validated id/type patterns, namespaces, item-or-tag references, selectors and one action. The engine reads each data entry into these values instead of keeping a private string-copy representation."

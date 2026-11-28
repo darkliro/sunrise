@@ -72,10 +72,11 @@ hold and exactly one action. A filter with no match keys matches every recipe:
 
 | Key | Meaning |
 |---|---|
-| `id` | the recipe id; `*` matches any run of characters (`minecraft:*_planks`) |
+| `id` | the recipe id; `*` matches any run of characters (`minecraft:*_planks`), and `*` alone matches every id |
 | `type` | the recipe's `type`, with the same `*` (`mymod:*`) |
+| `namespace` | the recipe id's namespace (`gtceu`, not a path prefix) |
 | `input` | an item id or `#tag` among the recipe's inputs |
-| `output` | an item id among its outputs (anything under `result`, `results`, `output` or `outputs`) |
+| `output` | an item id or `#tag` among its outputs (anything under `result`, `results`, `output` or `outputs`) |
 | `remove` | `true`: the recipe is not loaded |
 | `replace_input` | `{"from": ..., "to": ...}`: every input that is `from` becomes `to` |
 | `replace_output` | the same, for the outputs |
