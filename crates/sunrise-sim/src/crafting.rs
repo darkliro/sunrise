@@ -446,9 +446,9 @@ impl Special {
     /// its layout, its result as the button shows it, and every stack the
     /// result display cycles through when it is more than that one
     /// (`SlotDisplay.resolveForStacks`).
-    /// `dye_of` reads an item's effective `dye` component (its index in
-    /// `sunrise_level::dyes::DYES`), as `Context::dye` does for matching.
-    pub fn book_displays(&self, dye_of: impl Fn(&str) -> Option<usize>) -> Vec<BookDisplay> {
+    /// `dye_of` reads a displayed stack's effective `dye` component (its index
+    /// in `sunrise_level::dyes::DYES`), as `Context::dye` does for matching.
+    pub fn book_displays(&self, dye_of: impl Fn(&ItemStack) -> Option<usize>) -> Vec<BookDisplay> {
         let first_of =
             |all: &Vec<ItemStack>, single: ItemStack| all.first().cloned().unwrap_or(single);
         let shown = |display, result, variants| BookDisplay {
@@ -510,7 +510,9 @@ impl Special {
                 let dyes: Vec<(ItemStack, u32)> = dye_stacks
                     .into_iter()
                     .filter_map(|stack| {
-                        let color = dye_of(&stack.item)
+                        // The displayed stack's effective component decides both
+                        // membership and colour, not the item's default.
+                        let color = dye_of(&stack)
                             .and_then(|i| sunrise_level::dyes::DYES.get(i))
                             .map(|d| d.1)?;
                         Some((stack, color))
@@ -528,7 +530,13 @@ impl Special {
                     .collect();
                 let mut shown_dye = dye.clone();
                 shown_dye.shown = Some(dyes.into_iter().map(|(stack, _)| stack).collect());
-                let first = result.create();
+                // With every dye entry filtered out vanilla resolves no result:
+                // an empty stack, not the recipe's template.
+                let first = if all.is_empty() {
+                    ItemStack::new("minecraft:air", 0)
+                } else {
+                    result.create()
+                };
                 vec![shown(
                     Display::Shapeless(vec![target.clone(), shown_dye]),
                     first_of(&all, first),
@@ -671,7 +679,7 @@ impl Context<'_> {
     }
     /// `itemStack.has(DataComponents.DYE)`.
     fn dye(&self, stack: &ItemStack) -> Option<usize> {
-        self.recipes.item_dye(&stack.item)
+        self.recipes.stack_dye(stack)
     }
     fn max_stack(&self, item: &str) -> u32 {
         self.recipes.facts.get(item).map_or(64, |f| f.max_stack)
@@ -2425,11 +2433,26 @@ impl Recipes {
         }
     }
 
-    /// The item's effective `dye` component as an index into
-    /// `sunrise_level::dyes::DYES` (`ItemStack.get(DataComponents.DYE)`), the
-    /// one read matching already uses.
+    /// The item's default `dye` component as an index into
+    /// `sunrise_level::dyes::DYES`.
     pub(crate) fn item_dye(&self, item: &str) -> Option<usize> {
         self.facts.get(item).and_then(|f| f.dye)
+    }
+
+    /// A stack's effective `dye` component (`ItemStack.get(DataComponents.DYE)`):
+    /// its own `minecraft:dye` colour name when it carries one, else the item's
+    /// default. Matching and the recipe-book preview share this read.
+    pub(crate) fn stack_dye(&self, stack: &ItemStack) -> Option<usize> {
+        if let Some(Tag::String(name)) = stack.data().and_then(|d| d.other("minecraft:dye")) {
+            let name = name.to_string_lossy();
+            if let Some(index) = sunrise_level::dyes::DYES
+                .iter()
+                .position(|(dye, _)| *dye == name.as_str())
+            {
+                return Some(index);
+            }
+        }
+        self.item_dye(&stack.item)
     }
 
     /// `RecipeManager.getRecipe`: look up a crafting recipe by its id name.
@@ -3952,7 +3975,8 @@ mod tests {
             dye: ingredient(&["mymod:scarlet_dye"]),
             result: Template::parse(&serde_json::json!("minecraft:leather_helmet")).unwrap(),
         };
-        let displays = recipe.book_displays(|item| (item == "mymod:scarlet_dye").then_some(14));
+        let displays = recipe
+            .book_displays(|stack| (stack.item.as_ref() == "mymod:scarlet_dye").then_some(14));
         let variants = &displays[0].variants;
         assert_eq!(variants.len(), 1);
         assert_eq!(
@@ -3971,7 +3995,8 @@ mod tests {
             dye: ingredient(&["minecraft:red_dye", "minecraft:stick"]),
             result: Template::parse(&serde_json::json!("minecraft:leather_helmet")).unwrap(),
         };
-        let displays = recipe.book_displays(|item| (item == "minecraft:red_dye").then_some(14));
+        let displays = recipe
+            .book_displays(|stack| (stack.item.as_ref() == "minecraft:red_dye").then_some(14));
         let variants = &displays[0].variants;
         assert_eq!(variants.len(), 1, "a non-dye entry makes no variant");
         assert_eq!(
@@ -3984,6 +4009,20 @@ mod tests {
         let shown = slots[1].shown.as_ref().expect("the dye slot is filtered");
         assert_eq!(shown.len(), 1);
         assert_eq!(shown[0].item.as_ref(), "minecraft:red_dye");
+
+        // Every entry filtered out: vanilla resolves no result at all.
+        let empty = Special::Dye {
+            target: ingredient(&["minecraft:leather_helmet"]),
+            dye: ingredient(&["minecraft:stick"]),
+            result: Template::parse(&serde_json::json!("minecraft:leather_helmet")).unwrap(),
+        };
+        let displays = empty.book_displays(|_| None);
+        assert!(displays[0].variants.is_empty());
+        assert_eq!(displays[0].result.item.as_ref(), "minecraft:air");
+        let Display::Shapeless(slots) = &displays[0].display else {
+            panic!("a dye recipe shows its target and dye");
+        };
+        assert!(slots[1].shown.as_ref().is_some_and(Vec::is_empty));
     }
 }
 
